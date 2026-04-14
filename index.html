@@ -750,7 +750,7 @@ async function loadMarket(){
       fetch('https://api.ston.fi/v1/assets/EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c').catch(()=>null),
       fetch('https://api.ston.fi/v1/assets/EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO').catch(()=>null),
       fetch('https://api.ston.fi/v1/assets/EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT').catch(()=>null),
-      fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ston-fi,notcoin,dogs&vs_currencies=usd&include_24hr_change=true').catch(()=>null),
+      fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ston-fi,notcoin,dogs-2&vs_currencies=usd&include_24hr_change=true').catch(()=>null),
     ]);
 
     const [tonD, stonD, notD] = await Promise.all([
@@ -764,13 +764,13 @@ async function loadMarket(){
     const tonPrice  = parseFloat(tonD?.asset?.dex_usd_price  || tonD?.asset?.usd_price  || cg['the-open-network']?.usd || 0);
     const stonPrice = parseFloat(stonD?.asset?.dex_usd_price || stonD?.asset?.usd_price || cg['ston-fi']?.usd          || 0);
     const notPrice  = parseFloat(notD?.asset?.dex_usd_price  || notD?.asset?.usd_price  || cg['notcoin']?.usd          || 0);
-    const dogsPrice = parseFloat(cg['dogs']?.usd || 0);
+    const dogsPrice = parseFloat(cg['dogs-2']?.usd || 0);
 
     market={
       TON: {price: tonPrice  || null, ch: cg['the-open-network']?.usd_24h_change || 0},
       STON:{price: stonPrice || null, ch: cg['ston-fi']?.usd_24h_change          || 0},
       NOT: {price: notPrice  || null, ch: cg['notcoin']?.usd_24h_change          || 0},
-      DOGS:{price: dogsPrice || null, ch: cg['dogs']?.usd_24h_change             || 0},
+      DOGS:{price: dogsPrice || null, ch: cg['dogs-2']?.usd_24h_change           || 0},
       USDT:{price: 1.0, ch: 0},
     };
 
