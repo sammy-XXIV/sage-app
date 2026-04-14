@@ -745,61 +745,37 @@ async function fetchAssetPrice(assetAddr, vsAddr){
 
 async function loadMarket(){
   try{
-    // Fetch TON price via STON.fi asset endpoint — returns USD price directly
-    const [tonRes, stonRes, notRes] = await Promise.all([
-      fetch('https://api.ston.fi/v1/assets/EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c'),
-      fetch('https://api.ston.fi/v1/assets/EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO'),
-      fetch('https://api.ston.fi/v1/assets/EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT'),
+    // Fetch prices from STON.fi + 24h change from CoinGecko in parallel
+    const [stonTon, stonSton, stonNot, cgRes] = await Promise.all([
+      fetch('https://api.ston.fi/v1/assets/EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c').catch(()=>null),
+      fetch('https://api.ston.fi/v1/assets/EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO').catch(()=>null),
+      fetch('https://api.ston.fi/v1/assets/EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT').catch(()=>null),
+      fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ston-fi,notcoin,dogs&vs_currencies=usd&include_24hr_change=true').catch(()=>null),
     ]);
 
     const [tonD, stonD, notD] = await Promise.all([
-      tonRes.ok ? tonRes.json() : null,
-      stonRes.ok ? stonRes.json() : null,
-      notRes.ok ? notRes.json() : null,
+      stonTon?.ok  ? stonTon.json()  : null,
+      stonSton?.ok ? stonSton.json() : null,
+      stonNot?.ok  ? stonNot.json()  : null,
     ]);
+    const cg = cgRes?.ok ? await cgRes.json() : {};
 
-    const tonPrice  = parseFloat(tonD?.asset?.dex_usd_price  || tonD?.asset?.usd_price  || 0);
-    const stonPrice = parseFloat(stonD?.asset?.dex_usd_price || stonD?.asset?.usd_price || 0);
-    const notPrice  = parseFloat(notD?.asset?.dex_usd_price  || notD?.asset?.usd_price  || 0);
-
-    // 24h change not in asset endpoint — fetch stats
-    const statsRes = await fetch('https://api.ston.fi/v1/stats/dex');
-    const stats = statsRes.ok ? await statsRes.json() : {};
+    // STON.fi for accurate DEX prices, CoinGecko for 24h change
+    const tonPrice  = parseFloat(tonD?.asset?.dex_usd_price  || tonD?.asset?.usd_price  || cg['the-open-network']?.usd || 0);
+    const stonPrice = parseFloat(stonD?.asset?.dex_usd_price || stonD?.asset?.usd_price || cg['ston-fi']?.usd          || 0);
+    const notPrice  = parseFloat(notD?.asset?.dex_usd_price  || notD?.asset?.usd_price  || cg['notcoin']?.usd          || 0);
+    const dogsPrice = parseFloat(cg['dogs']?.usd || 0);
 
     market={
-      TON: {price: tonPrice  || null, ch: 0},
-      STON:{price: stonPrice || null, ch: 0},
-      NOT: {price: notPrice  || null, ch: 0},
-      DOGS:{price: null, ch: 0},
+      TON: {price: tonPrice  || null, ch: cg['the-open-network']?.usd_24h_change || 0},
+      STON:{price: stonPrice || null, ch: cg['ston-fi']?.usd_24h_change          || 0},
+      NOT: {price: notPrice  || null, ch: cg['notcoin']?.usd_24h_change          || 0},
+      DOGS:{price: dogsPrice || null, ch: cg['dogs']?.usd_24h_change             || 0},
       USDT:{price: 1.0, ch: 0},
     };
 
-    // If any price came back as 0/null, try CoinGecko as secondary fallback
-    const missing = !tonPrice || !stonPrice || !notPrice;
-    if(missing){
-      const cgr = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ston-fi,notcoin&vs_currencies=usd&include_24hr_change=true');
-      if(cgr.ok){
-        const cgd = await cgr.json();
-        if(!tonPrice)  market.TON  = {price: cgd['the-open-network']?.usd, ch: cgd['the-open-network']?.usd_24h_change||0};
-        if(!stonPrice) market.STON = {price: cgd['ston-fi']?.usd,          ch: cgd['ston-fi']?.usd_24h_change||0};
-        if(!notPrice)  market.NOT  = {price: cgd['notcoin']?.usd,           ch: cgd['notcoin']?.usd_24h_change||0};
-      }
-    }
-
   }catch(e){
-    // Last resort: try CoinGecko only
-    try{
-      const cgr=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ston-fi,notcoin&vs_currencies=usd&include_24hr_change=true');
-      if(cgr.ok){
-        const cgd=await cgr.json();
-        market={
-          TON: {price:cgd['the-open-network']?.usd, ch:cgd['the-open-network']?.usd_24h_change||0},
-          STON:{price:cgd['ston-fi']?.usd,          ch:cgd['ston-fi']?.usd_24h_change||0},
-          NOT: {price:cgd['notcoin']?.usd,           ch:cgd['notcoin']?.usd_24h_change||0},
-          DOGS:{price:null,ch:0},USDT:{price:1.0,ch:0}
-        };
-      }
-    }catch{}
+    console.log('Market load error:', e);
   }
   renderTicker();
   checkAlerts();
@@ -907,7 +883,7 @@ For farm listings:
 <LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","target":"0.005","current":"0.0061","amount":"500","pay":"2.5","expiry":"7 days"}</LIMIT_CARD>`,
 
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
-<STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ $5.82 = $116.40 USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
+<STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
 
   portfolio:`For portfolio queries respond with:
 <PF_CARD>{"total":"$842.50","change24":"+$18.40","changeP":"+2.2","lp":"$420.00","farming":"$280.00","staking":"$142.50","positions":[{"type":"lp","name":"TON/USDT","value":"$280","earned":"$4.20","apr":"8.4%"},{"type":"farm","name":"STON/TON","lp":"24.5 LP","reward":"3.2 STON","apr":"24.5%"},{"type":"stake","name":"500 STON","gemston":"1250","unlocks":"Apr 2027"}],"tip":"Your STON/TON farm is outperforming. Consider moving idle TON to the NOT/TON farm for +9.8% APR."}</PF_CARD>`,
