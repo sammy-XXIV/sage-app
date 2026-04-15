@@ -814,8 +814,9 @@ function updateChips(){
 
 
 // ── History ───────────────────────────────────────────────
-function loadH(){try{const r=localStorage.getItem(HK);return r?JSON.parse(r):[]}catch{return[]}}
-function saveH(){try{localStorage.setItem(HK,JSON.stringify(history.slice(-40)))}catch{}}
+function getHK(){return walletAddr?`${HK}_${walletAddr.slice(-8)}`:HK}
+function loadH(){try{const r=localStorage.getItem(getHK());return r?JSON.parse(r):[]}catch{return[]}}
+function saveH(){try{localStorage.setItem(getHK(),JSON.stringify(history.slice(-40)))}catch{}}
 function addH(role,content){history.push({role,content,time:Date.now()});saveH()}
 
 // ── Alerts ────────────────────────────────────────────────
@@ -1461,3 +1462,4 @@ function initParticles(){
 </script>
 </body>
 </html>
+
