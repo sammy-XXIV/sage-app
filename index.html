@@ -616,6 +616,19 @@ async function initTON(){
         document.getElementById('wLbl').textContent=s;
         document.getElementById('wBtn').classList.add('on');
         toast('✓ Wallet connected');
+        // Reload wallet-specific history now that we have the address
+        const walletHistory=loadH().filter(m=>m.role!=='system');
+        if(walletHistory.length){
+          history=walletHistory;
+          // Clear chat and re-render wallet-specific history
+          const chat=document.getElementById('chat');
+          chat.innerHTML='';
+          history.slice(-14).forEach(m=>{
+            const t=new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            if(m.role==='user')addMsg('user',`<div class="bubble">${esc(m.content)}</div>`,t);
+            else if(m.role==='assistant')addMsg('ai',`<div class="ai-content">${renderAI(m.content)}</div>`,t);
+          });
+        }
         refreshWalletData().then(()=>autoLoadPortfolio());
       }else{
         walletOK=false;walletAddr=null;
@@ -635,7 +648,7 @@ async function fetchWalletData(address){
       fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
-      fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${address}`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}`).catch(()=>null),
     ]);
 
     const [lpData, farmData, opsData, balData] = await Promise.all([
@@ -644,8 +657,12 @@ async function fetchWalletData(address){
       opsRes?.ok  ? opsRes.json()  : null,
       balRes?.ok  ? balRes.json()  : null,
     ]);
-    // Native TON balance
-    const tonBalance = balData?.result ? parseFloat(balData.result) / 1e9 : 0;
+    // Native TON balance from STON.fi wallet endpoint
+    const tonBalance = balData?.wallet?.ton_balance
+      ? parseFloat(balData.wallet.ton_balance) / 1e9
+      : balData?.ton_balance
+      ? parseFloat(balData.ton_balance) / 1e9
+      : 0;
     const tonPrice = market?.TON?.price || 0;
     const tonUSD = tonBalance * tonPrice;
     if(tonBalance > 0){
@@ -1479,3 +1496,4 @@ function initParticles(){
 </script>
 </body>
 </html>
+
