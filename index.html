@@ -420,70 +420,14 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 @keyframes tw{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
 .tt{font-size:9px;color:var(--t2);font-family:var(--mono)}
 
-/* ── Bottom nav ── */
-#bnav{
-  display:flex;align-items:center;
-  padding:6px 8px;padding-bottom:max(8px,env(safe-area-inset-bottom));
-  background:rgba(5,8,15,.92);
-  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
-  border-top:1px solid var(--b0);
-  flex-shrink:0;gap:2px;
-  animation:sUp .5s cubic-bezier(.16,1,.3,1) .15s both;
-}
-@keyframes sUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 
-.nav-item{
-  flex:1;display:flex;flex-direction:column;align-items:center;
-  gap:3px;padding:6px 4px;border-radius:12px;
-  cursor:pointer;transition:all .22s cubic-bezier(.16,1,.3,1);
-  border:1px solid transparent;
-  position:relative;
-}
-.nav-item:active{transform:scale(.92)}
-.nav-icon{font-size:18px;line-height:1;transition:transform .22s cubic-bezier(.16,1,.3,1)}
-.nav-label{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.3px;font-family:var(--font);transition:color .22s}
-.nav-item.active .nav-label{color:var(--ac);transition:color .22s,.6s}
-.nav-item.active{background:var(--ac-dim);border-color:var(--ac-border)}
-.nav-item.active .nav-icon{transform:scale(1.12)}
 
-/* More drawer */
-#drawer{
-  position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);
-  width:100%;max-width:480px;
-  background:rgba(11,16,24,.97);
-  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
-  border-top:1px solid var(--b1);border-radius:24px 24px 0 0;
-  padding:16px;z-index:50;
-  transition:transform .38s cubic-bezier(.16,1,.3,1);
-}
-#drawer.open{transform:translateX(-50%) translateY(0)}
-.drawer-handle{width:36px;height:3px;background:var(--t3);border-radius:2px;margin:0 auto 16px}
-.drawer-title{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);margin-bottom:12px}
-.drawer-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.drawer-item{
-  background:var(--s2);border:1px solid var(--b1);
-  border-radius:var(--r);padding:14px 8px;
-  text-align:center;cursor:pointer;
-  transition:all .22s cubic-bezier(.16,1,.3,1);
-}
-.drawer-item:hover{border-color:var(--ac-border);background:var(--ac-dim)}
-.drawer-item:active{transform:scale(.94)}
-.di-icon{font-size:24px;margin-bottom:6px}
-.di-label{font-size:11px;font-weight:700;color:var(--t1)}
-.di-sub{font-size:9px;color:var(--t2);font-family:var(--mono);margin-top:2px}
 
-/* Drawer overlay */
-#overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.5);
-  z-index:40;opacity:0;pointer-events:none;
-  transition:opacity .3s;
-}
-#overlay.show{opacity:1;pointer-events:all}
 
 /* Input */
 #inpArea{
   padding:9px 14px;
-  padding-bottom:max(9px,env(safe-area-inset-bottom));
+  padding-bottom:max(14px,env(safe-area-inset-bottom));
   border-top:1px solid var(--b0);
   background:rgba(5,8,15,.9);
   backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
@@ -518,7 +462,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 
 /* Toast */
 #toast{
-  position:fixed;bottom:90px;left:50%;
+  position:fixed;bottom:80px;left:50%;
   transform:translateX(-50%) translateY(12px) scale(.93);
   background:rgba(15,21,32,.95);border:1px solid var(--ac-border);
   border-radius:20px;padding:9px 18px;
@@ -540,8 +484,6 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 <canvas id="cv"></canvas>
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
-<div id="overlay" onclick="closeDrawer()"></div>
-
 <div id="app">
 
   <!-- Header -->
@@ -585,63 +527,28 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
     </div>
   </div>
 
-  <!-- Bottom nav -->
-  <div id="bnav">
-    <div class="nav-item active" data-mode="swap" onclick="setMode(this)">
-      <span class="nav-icon">⚡</span>
-      <span class="nav-label">Swap</span>
-    </div>
-    <div class="nav-item" data-mode="liquidity" onclick="setMode(this)">
-      <span class="nav-icon">💧</span>
-      <span class="nav-label">Liquidity</span>
-    </div>
-    <div class="nav-item" data-mode="farming" onclick="setMode(this)">
-      <span class="nav-icon">🌾</span>
-      <span class="nav-label">Farming</span>
-    </div>
-    <div class="nav-item" data-mode="staking" onclick="setMode(this)">
-      <span class="nav-icon">🔒</span>
-      <span class="nav-label">Staking</span>
-    </div>
-    <div class="nav-item" data-mode="limitorder" onclick="setMode(this)">
-      <span class="nav-icon">📋</span>
-      <span class="nav-label">Orders</span>
-    </div>
-    <div class="nav-item" onclick="openDrawer()">
-      <span class="nav-icon">✦</span>
-      <span class="nav-label">More</span>
-    </div>
-  </div>
+
 </div>
 
-<!-- More drawer -->
-<div id="drawer">
-  <div class="drawer-handle"></div>
-  <div class="drawer-title">More Features</div>
-  <div class="drawer-grid">
-    <div class="drawer-item" onclick="setModeDrawer('strategy')">
-      <div class="di-icon">🧠</div>
-      <div class="di-label">Strategy</div>
-      <div class="di-sub">AI goal planner</div>
-    </div>
-    <div class="drawer-item" onclick="setModeDrawer('portfolio')">
-      <div class="di-icon">📊</div>
-      <div class="di-label">Portfolio</div>
-      <div class="di-sub">Your positions</div>
-    </div>
-    <div class="drawer-item" onclick="setModeDrawer('alerts')">
-      <div class="di-icon">🔔</div>
-      <div class="di-label">Alerts</div>
-      <div class="di-sub">Price & APR alerts</div>
-    </div>
-  </div>
-</div>
+
 
 <div id="toast"></div>
 
 <script>
 // ── Config ──────────────────────────────────────────────
 const API='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
+const WORKER='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
+
+// Token addresses on STON.fi mainnet
+const TOKEN_ADDRS={
+  TON:  'ton',
+  USDT: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+  STON: 'EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO',
+  NOT:  'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
+  DOGS: 'EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS',
+  USDE: 'EQCpZNOG9sJJQsxOWE6mGUkK-k09x0f8N3VbwB0H0H_USDE',
+};
+function getAddr(symbol){ return TOKEN_ADDRS[symbol?.toUpperCase()] || null; }
 const HK='sage_v3_hist';
 const AK='sage_v3_alerts';
 
@@ -671,7 +578,7 @@ const CHIPS={
 
 // ── State ─────────────────────────────────────────────────
 let walletOK=false,walletAddr=null,tcUI=null;
-let market={},history=[],busy=false,mode='swap';
+let market={},history=[],busy=false,mode='swap'; // mode auto-detected from user intent
 let alerts=[];
 
 // ── Telegram ─────────────────────────────────────────────
@@ -709,7 +616,7 @@ async function initTON(){
         document.getElementById('wLbl').textContent=s;
         document.getElementById('wBtn').classList.add('on');
         toast('✓ Wallet connected');
-        autoLoadPortfolio();
+        refreshWalletData().then(()=>autoLoadPortfolio());
       }else{
         walletOK=false;walletAddr=null;
         document.getElementById('wLbl').textContent='Connect';
@@ -719,6 +626,96 @@ async function initTON(){
   }catch(e){console.log('TonConnect:',e)}
 }
 async function connectWallet(){if(!tcUI)return;walletOK?await tcUI.disconnect():await tcUI.openModal()}
+
+// ── Real Wallet Data ─────────────────────────────────────
+async function fetchWalletData(address){
+  if(!address) return null;
+  try{
+    const [lpRes, farmRes, opsRes] = await Promise.all([
+      fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
+    ]);
+
+    const [lpData, farmData, opsData] = await Promise.all([
+      lpRes?.ok  ? lpRes.json()  : null,
+      farmRes?.ok ? farmRes.json() : null,
+      opsRes?.ok  ? opsRes.json()  : null,
+    ]);
+
+    const lps    = lpData?.lp_accounts  || [];
+    const farms  = farmData?.farms      || [];
+    const ops    = opsData?.operations  || [];
+
+    // Calculate total value
+    let totalUSD = 0;
+    const positions = [];
+
+    // LP positions
+    for(const lp of lps){
+      const val = parseFloat(lp.lp_balance_usd || 0);
+      totalUSD += val;
+      if(val > 0 || lp.lp_balance > 0){
+        positions.push({
+          type: 'lp',
+          name: `${lp.token0_symbol}/${lp.token1_symbol}`,
+          value: `$${val.toFixed(2)}`,
+          lpBalance: lp.lp_balance,
+          token0: lp.token0_symbol,
+          token1: lp.token1_symbol,
+          apr: lp.apy ? `${(parseFloat(lp.apy)*100).toFixed(1)}%` : null,
+        });
+      }
+    }
+
+    // Farm positions
+    for(const farm of farms){
+      const pending = parseFloat(farm.pending_reward || 0);
+      const staked  = parseFloat(farm.staked_tokens  || 0);
+      if(staked > 0 || pending > 0){
+        positions.push({
+          type: 'farm',
+          name: farm.pool_name || farm.name || 'Farm',
+          lp: staked.toFixed(4),
+          reward: `${pending.toFixed(4)} ${farm.reward_token_symbol || 'STON'}`,
+          apr: farm.apr ? `${parseFloat(farm.apr).toFixed(1)}%` : null,
+        });
+      }
+    }
+
+    // Recent swap history
+    const swaps = ops
+      .filter(o => o.operation_type === 'Swap')
+      .slice(0,5)
+      .map(o => ({
+        from: o.from_asset_symbol,
+        to:   o.to_asset_symbol,
+        fromAmt: parseFloat(o.from_amount||0).toFixed(4),
+        toAmt:   parseFloat(o.to_amount||0).toFixed(4),
+        time: o.created_at,
+      }));
+
+    return {
+      address,
+      totalUSD: totalUSD.toFixed(2),
+      positions,
+      swaps,
+      isEmpty: positions.length === 0 && swaps.length === 0,
+    };
+  }catch(e){
+    console.log('Wallet fetch error:', e);
+    return null;
+  }
+}
+
+// Cache wallet data
+let walletData = null;
+async function refreshWalletData(){
+  if(!walletAddr) return;
+  walletData = await fetchWalletData(walletAddr);
+  console.log('Wallet data:', walletData);
+}
+
 
 // ── Market ────────────────────────────────────────────────
 // Token addresses on STON.fi
@@ -730,18 +727,7 @@ const ADDR={
   DOGS:'EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS',
 };
 
-async function fetchAssetPrice(assetAddr, vsAddr){
-  // Use STON.fi swap simulate to get real price
-  try{
-    const url=`https://api.ston.fi/v1/swap/simulate?offer_address=${vsAddr}&ask_address=${assetAddr}&units=1000000000&slippage_tolerance=0.01`;
-    const r=await fetch(url);
-    if(!r.ok) return null;
-    const d=await r.json();
-    // ask_units is how much asset you get for 1 USDT (1000000 units)
-    // swap_rate is offer/ask ratio
-    return d.swap_rate ? parseFloat(d.swap_rate) : null;
-  }catch{ return null; }
-}
+
 
 async function loadMarket(){
   try{
@@ -796,41 +782,36 @@ function renderTicker(){
   document.getElementById('tickerTrack').innerHTML=html;
 }
 
-// ── Mode switching ────────────────────────────────────────
-function setMode(el,skipDrawer){
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  if(el)el.classList.add('active');
-  mode=el?el.dataset.mode:mode;
-  applyAccent(mode);
-  updateChips();
-  document.getElementById('inp').placeholder=(CHIPS[mode]?.[0]||'Ask SAGE...')+'...';
-}
-
-function setModeDrawer(m){
-  closeDrawer();
-  mode=m;
-  applyAccent(mode);
-  updateChips();
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  toast(`${ACCENTS[m].icon} ${m.charAt(0).toUpperCase()+m.slice(1)} mode`);
-  document.getElementById('inp').placeholder=(CHIPS[m]?.[0]||'Ask SAGE...')+'...';
+// ── Mode auto-detection from user message ─────────────────
+function detectMode(msg){
+  const m=msg.toLowerCase();
+  if(m.includes('swap')||m.includes('exchange')||m.includes('buy')||m.includes('sell')&&!m.includes('limit')) return 'swap';
+  if(m.includes('liquid')||m.includes('pool')||m.includes('lp')||m.includes('provide')) return 'liquidity';
+  if(m.includes('farm')||m.includes('yield')||m.includes('harvest')) return 'farming';
+  if(m.includes('stak')||m.includes('gemston')||m.includes('arkenston')||m.includes('lock')) return 'staking';
+  if(m.includes('limit')||m.includes('order')||m.includes('target price')) return 'limitorder';
+  if(m.includes('strateg')||m.includes('maximize')||m.includes('best way')||m.includes('plan')) return 'strategy';
+  if(m.includes('portfolio')||m.includes('position')||m.includes('balance')||m.includes('holdings')) return 'portfolio';
+  if(m.includes('alert')||m.includes('notify')||m.includes('when price')) return 'alerts';
+  return mode; // keep current
 }
 
 function updateChips(){
   const c=document.getElementById('chips');if(!c)return;
-  const list=CHIPS[mode]||[];
-  c.innerHTML=list.map(t=>`<div class="chip" onclick="chipSend(this)">${t}</div>`).join('');
+  // Show chips across all modes for welcome screen
+  const allChips=[
+    'Swap $20 TON → USDT',
+    'Add liquidity TON/USDT',
+    'Best farms right now',
+    'Stake 500 STON for 12 months',
+    'Analyze my portfolio',
+    'Alert me when TON hits $2',
+    'Maximize yield with 50 TON',
+  ];
+  c.innerHTML=allChips.map(t=>`<div class="chip" onclick="chipSend(this)">${t}</div>`).join('');
 }
 
-// ── Drawer ────────────────────────────────────────────────
-function openDrawer(){
-  document.getElementById('drawer').classList.add('open');
-  document.getElementById('overlay').classList.add('show');
-}
-function closeDrawer(){
-  document.getElementById('drawer').classList.remove('open');
-  document.getElementById('overlay').classList.remove('show');
-}
+
 
 // ── History ───────────────────────────────────────────────
 function loadH(){try{const r=localStorage.getItem(HK);return r?JSON.parse(r):[]}catch{return[]}}
@@ -864,7 +845,7 @@ function sendTgAlert(msg){
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
   swap:`For swap requests respond with:
-<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"20","toAmount":"116.40","rate":"5.82","priceImpact":"0.12","slippage":"1.0","risk":"low","riskNote":"Stable pair, minimal risk."}</SWAP_CARD>`,
+<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"20","toAmount":"calculate_from_live_rate","rate":"use_live_market_rate","priceImpact":"0.12","slippage":"1.0","risk":"low","riskNote":"Stable pair, minimal risk."}</SWAP_CARD>`,
 
   liquidity:`For liquidity requests respond with:
 <LIQ_CARD>{"action":"add","pool":"TON/USDT","t0":"TON","t1":"USDT","a0":"10","a1":"58.20","share":"0.012","apr":"8.4","tvl":"$2.1M","risk":"low"}</LIQ_CARD>
@@ -885,8 +866,9 @@ For farm listings:
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
 <STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
 
-  portfolio:`For portfolio queries respond with:
-<PF_CARD>{"total":"$842.50","change24":"+$18.40","changeP":"+2.2","lp":"$420.00","farming":"$280.00","staking":"$142.50","positions":[{"type":"lp","name":"TON/USDT","value":"$280","earned":"$4.20","apr":"8.4%"},{"type":"farm","name":"STON/TON","lp":"24.5 LP","reward":"3.2 STON","apr":"24.5%"},{"type":"stake","name":"500 STON","gemston":"1250","unlocks":"Apr 2027"}],"tip":"Your STON/TON farm is outperforming. Consider moving idle TON to the NOT/TON farm for +9.8% APR."}</PF_CARD>`,
+  portfolio:`For portfolio queries, use ONLY real wallet data. Build the PF_CARD from actual positions:
+<PF_CARD>{"total":"$0.00","lp":"$0.00","farming":"$0.00","staking":"$0.00","positions":[],"tip":"No positions found. Make your first swap to get started."}</PF_CARD>
+Populate with real data if positions exist. Never invent numbers.`,
 
   alerts:`For alert requests respond with:
 <ALERT_CARD>{"alerts":[{"id":"a1","token":"TON","type":"above","target":"7.00","current":"5.82","label":"TON price alert","active":true},{"id":"a2","token":"STON","type":"below","target":"0.07","current":"0.083","label":"STON dip alert","active":true}],"new":{"token":"TON","type":"above","target":"7.00","label":"TON hits $7"}}</ALERT_CARD>`
@@ -900,16 +882,22 @@ async function askAI(msg){
   const sys=`You are SAGE, an elite AI DeFi agent for STON.fi on TON blockchain. Sharp, direct, professional — like a Bloomberg terminal that thinks.
 
 Market: ${mktCtx()}
-Mode: ${mode}
+Context mode: ${mode} (but always respond to what the user actually asks, regardless of mode)
 Wallet: ${walletOK?'Connected ('+walletAddr?.slice(0,8)+'...)':'Disconnected'}
+Real wallet data: ${walletData ? JSON.stringify(walletData) : 'No wallet connected or data not loaded yet'}
 Time: ${new Date().toISOString()}
 
 ${MODE_PROMPTS[mode]||''}
 
-For position queries in any mode, also include:
-<POS_CARD>{"positions":[{"type":"lp","name":"TON/USDT","value":"$145.20","earned":"$2.14","apr":"8.4%"},{"type":"farm","name":"STON/TON","lp":"24.5","reward":"3.2 STON","apr":"24.5%"},{"type":"stake","name":"500 STON","gemston":"1250","unlocks":"Apr 2027"}]}</POS_CARD>
+For position queries, use ONLY real wallet data from above. If positions array is empty, respond with:
+<POS_CARD>{"positions":[],"empty":true}</POS_CARD>
+If positions exist, map them exactly from the real wallet data provided.
 
 Rules:
+- CRITICAL: ONLY use real wallet data provided above. NEVER invent positions, balances, or transactions.
+- If wallet is empty or has no positions, say so honestly. Do not make up data.
+- If wallet is not connected, tell user to connect first.
+- For portfolio/positions queries: use ONLY the real wallet data above to populate cards.
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
@@ -1143,6 +1131,15 @@ function toggleAlert(id,el){
 }
 
 function rPos(d){
+  if(d.empty || !d.positions || d.positions.length===0){
+    return`<div class="acard">
+      <div class="alabel"><span class="alabel-icon">📌</span>MY POSITIONS</div>
+      <div style="text-align:center;padding:20px;color:var(--t2);font-size:12px">
+        <div style="font-size:24px;margin-bottom:8px">🌱</div>
+        No positions yet.<br>Make your first swap to get started.
+      </div>
+    </div>`;
+  }
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">📌</span>MY POSITIONS</div>
     ${d.positions.map(p=>`
@@ -1180,16 +1177,123 @@ function renderAI(text){
 }
 
 // ── Execute ───────────────────────────────────────────────
-async function exec(type,data,btn){
-  if(!walletOK){toast('Connect wallet first');await tcUI?.openModal();return}
-  btn.disabled=true;btn.textContent='Preparing…';
-  await new Promise(r=>setTimeout(r,1200));
-  toast('⚡ Opening wallet…');
-  await new Promise(r=>setTimeout(r,800));
-  btn.textContent='✓ Submitted';
-  btn.style.background='linear-gradient(135deg,#2ecc8f,#1a9962)';
-  toast('✓ Transaction sent!',3000);
-  addH('system',`${type} executed`);
+async function exec(type, data, btn){
+  if(!walletOK){ toast('Connect wallet first'); await tcUI?.openModal(); return; }
+  if(!tcUI){ toast('Wallet not ready'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Getting best rate…';
+
+  try{
+    let transaction = null;
+
+    // ── Swap ──────────────────────────────────────────────
+    if(type === 'swap'){
+      btn.textContent = 'Simulating swap…';
+      const fromAddr = getAddr(data.fromToken) || data.fromTokenAddr;
+      const toAddr   = getAddr(data.toToken)   || data.toTokenAddr;
+      if(!fromAddr || !toAddr) throw new Error(`Unknown token: ${!fromAddr?data.fromToken:data.toToken}`);
+      const res = await fetch(`${WORKER}/build/swap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromToken: fromAddr,
+          toToken:   toAddr,
+          fromAmount: data.fromAmount,
+          walletAddress: walletAddr,
+          slippage: parseFloat(data.slippage || '1') / 100,
+        })
+      });
+      const result = await res.json();
+      if(!result.ok) throw new Error(result.error || 'Swap build failed');
+      transaction = result.transaction;
+      toast(`⚡ Rate locked · Impact: ${result.simulation.priceImpact || '<0.1'}%`);
+    }
+
+    // ── Liquidity ─────────────────────────────────────────
+    else if(type === 'liquidity'){
+      btn.textContent = 'Simulating liquidity…';
+      const tokenAAddr = getAddr(data.t0) || data.tokenAAddr;
+      const tokenBAddr = getAddr(data.t1) || data.tokenBAddr;
+      if(!tokenAAddr || !tokenBAddr) throw new Error('Unknown token in pair');
+      const res = await fetch(`${WORKER}/build/liquidity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokenA: tokenAAddr,
+          tokenB: tokenBAddr,
+          amountA: data.a0,
+          walletAddress: walletAddr,
+        })
+      });
+      const result = await res.json();
+      if(!result.ok) throw new Error(result.error || 'Liquidity build failed');
+      transaction = result.transaction;
+      toast('💧 Liquidity tx ready');
+    }
+
+    // ── Farming ───────────────────────────────────────────
+    else if(type === 'farming'){
+      // Farm staking requires LP token address from the pool
+      // For now guide user to STON.fi directly with context
+      toast('🌾 Opening STON.fi farm…');
+      const farmUrl = `https://app.ston.fi/farms`;
+      if(tg?.openLink) tg.openLink(farmUrl);
+      else window.open(farmUrl, '_blank');
+      btn.disabled = false;
+      btn.textContent = 'View on STON.fi ↗';
+      return;
+    }
+
+    // ── Staking ───────────────────────────────────────────
+    else if(type === 'staking'){
+      toast('🔒 Opening STON.fi staking…');
+      const stakeUrl = `https://app.ston.fi/staking`;
+      if(tg?.openLink) tg.openLink(stakeUrl);
+      else window.open(stakeUrl, '_blank');
+      btn.disabled = false;
+      btn.textContent = 'View on STON.fi ↗';
+      return;
+    }
+
+    // ── Limit Orders ──────────────────────────────────────
+    else if(type === 'limitorder'){
+      toast('📋 Opening STON.fi limit orders…');
+      const loUrl = `https://app.ston.fi/limit-orders`;
+      if(tg?.openLink) tg.openLink(loUrl);
+      else window.open(loUrl, '_blank');
+      btn.disabled = false;
+      btn.textContent = 'View on STON.fi ↗';
+      return;
+    }
+
+    else {
+      toast('Coming soon');
+      btn.disabled = false;
+      return;
+    }
+
+    // ── Send to TON Connect for signing ───────────────────
+    if(transaction){
+      btn.textContent = 'Confirm in wallet…';
+      toast('⚡ Opening wallet to confirm…');
+      await tcUI.sendTransaction(transaction);
+      btn.textContent = '✓ Transaction sent';
+      btn.style.background = 'linear-gradient(135deg,#2ecc8f,#1a9962)';
+      toast('✅ Transaction submitted!', 4000);
+      // Refresh wallet data after tx
+      setTimeout(()=>refreshWalletData(), 5000);
+      addH('system', `${type} executed: ${JSON.stringify(data)}`);
+    }
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = e.message?.includes('User rejected')
+      ? 'Cancelled'
+      : 'Retry — ' + (e.message || 'Error');
+    toast('❌ ' + (e.message || 'Transaction failed'));
+    console.error('exec error:', e);
+  }
 }
 
 async function execStrategy(data,btn){
@@ -1273,6 +1377,8 @@ async function send(){
   document.getElementById('sbtn').disabled=true;
   busy=true;
 
+  mode=detectMode(txt);
+  applyAccent(mode);
   addMsg('user',`<div class="bubble">${esc(txt)}</div>`);
   addH('user',txt);showTyping();
 
@@ -1350,6 +1456,7 @@ function initParticles(){
   if(!history.length)greetNoWallet();
   setInterval(loadMarket,60000);
   setInterval(checkAlerts,30000);
+  if(walletOK) setInterval(refreshWalletData, 30000);
 })();
 </script>
 </body>
