@@ -565,24 +565,19 @@ async function getAddr(symbol){
   // Check cache
   if(tokenCache[up]) return tokenCache[up];
 
-  // Search STON.fi API
+  // Search via Worker (no CORS issues)
   try{
-    const res = await fetch(`https://api.ston.fi/v1/assets?search=${encodeURIComponent(symbol)}&limit=5`);
+    const res = await fetch(`${WORKER}/search/token`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({symbol})
+    });
     if(!res.ok) return null;
     const data = await res.json();
-    const assets = data?.asset_list || data?.assets || [];
-
-    // Find best match — prefer exact symbol match with high liquidity
-    const match = assets.find(a =>
-      a.symbol?.toUpperCase() === up &&
-      !a.blacklisted &&
-      a.dex_price_usd
-    ) || assets[0];
-
-    if(match?.contract_address){
-      tokenCache[up] = match.contract_address;
-      console.log(`Resolved ${symbol} → ${match.contract_address}`);
-      return match.contract_address;
+    if(data.ok && data.address){
+      tokenCache[up] = data.address;
+      console.log(`Resolved ${symbol} → ${data.address}`);
+      return data.address;
     }
   }catch(e){
     console.log('Token search failed:', e);
@@ -602,6 +597,7 @@ const ACCENTS={
   strategy: {ac:'#ff7b54',ac2:'#cc5530',icon:'🧠'},
   portfolio:{ac:'#479DFF',ac2:'#1a6fd4',icon:'📊'},
   alerts:   {ac:'#2ecc8f',ac2:'#1a9962',icon:'🔔'},
+  transfer: {ac:'#479DFF',ac2:'#1a6fd4',icon:'💸'},
 };
 
 // ── Mode chips ───────────────────────────────────────────
@@ -919,6 +915,7 @@ function renderTicker(){
 // ── Mode auto-detection from user message ─────────────────
 function detectMode(msg){
   const m=msg.toLowerCase();
+  if(m.includes('send')||m.includes('transfer')||m.includes('pay ')||m.includes('send ton')) return 'transfer';
   if(m.includes('swap')||m.includes('exchange')||m.includes('buy')||m.includes('sell')&&!m.includes('limit')) return 'swap';
   if(m.includes('liquid')||m.includes('pool')||m.includes('lp')||m.includes('provide')) return 'liquidity';
   if(m.includes('farm')||m.includes('yield')||m.includes('harvest')) return 'farming';
@@ -979,6 +976,10 @@ function sendTgAlert(msg){
 
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
+  transfer:`For TON transfer requests respond with:
+<TRANSFER_CARD>{"toAddress":"UQ...address","amount":"1","comment":"payment"}</TRANSFER_CARD>
+Always confirm the address with the user before generating the card.`,
+
   swap:`For swap requests respond with a SWAP_CARD using the exact token symbols the user mentioned.
 SAGE supports ALL 30,000+ tokens on STON.fi — not just common ones. Use whatever symbol the user specifies.
 Calculate toAmount from current market price. Example:
@@ -1327,6 +1328,22 @@ function rPos(d){
   </div>`;
 }
 
+// ── Transfer card renderer ────────────────────────────────
+function rTransfer(d){
+  return`<div class="acard">
+    <div class="alabel"><span class="alabel-icon">💸</span>TRANSFER PREVIEW</div>
+    <div class="drows" style="position:relative;z-index:1">
+      <div class="dr"><span class="dl">To</span><span class="dv" style="font-size:10px;word-break:break-all">${d.toAddress?.slice(0,8)}…${d.toAddress?.slice(-6)}</span></div>
+      <div class="dr"><span class="dl">Amount</span><span class="dv g">${d.amount} TON</span></div>
+      <div class="dr"><span class="dl">USD Value</span><span class="dv">≈$${(parseFloat(d.amount||0)*(market.TON?.price||0)).toFixed(2)}</span></div>
+      ${d.comment?`<div class="dr"><span class="dl">Note</span><span class="dv">${d.comment}</span></div>`:''}
+    </div>
+    <div class="rbar med" style="position:relative;z-index:1">⚠ Verify address carefully. TON transfers are irreversible.</div>
+    <button class="cbtn" onclick="exec('transfer',${esc2(d)},this)" ${!walletOK?'disabled':''}>
+      ${walletOK?'Confirm Transfer via Wallet':'Connect Wallet First'}</button>
+  </div>`;
+}
+
 // ── Render AI response ────────────────────────────────────
 function renderAI(text){
   let html='';
@@ -1334,7 +1351,7 @@ function renderAI(text){
   if(clean)html+=`<div class="bubble">${fmt(clean)}</div>`;
 
   const cards=[
-    ['SWAP_CARD',rSwap],['LIQ_CARD',rLiq],['POOLS_CARD',rPools],
+    ['SWAP_CARD',rSwap],['LIQ_CARD',rLiq],['POOLS_CARD',rPools],['TRANSFER_CARD',rTransfer],
     ['FARM_CARD',rFarm],['FARMS_CARD',rFarms],['STAKE_CARD',rStake],
     ['LIMIT_CARD',rLimit],['STRATEGY_CARD',rStrategy],
     ['PF_CARD',rPortfolio],['ALERT_CARD',rAlerts],['POS_CARD',rPos]
@@ -1433,6 +1450,25 @@ async function exec(type, data, btn){
       btn.disabled = false;
       btn.textContent = 'View on STON.fi ↗';
       return;
+    }
+
+    // ── TON Transfer ─────────────────────────────────────
+    else if(type === 'transfer'){
+      btn.textContent = 'Preparing transfer…';
+      const res = await fetch(`${WORKER}/build/transfer`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          toAddress: data.toAddress,
+          amount: data.amount,
+          comment: data.comment || '',
+          walletAddress: walletAddr,
+        })
+      });
+      const result = await res.json();
+      if(!result.ok) throw new Error(result.error || 'Transfer build failed');
+      transaction = result.transaction;
+      toast(`💸 Sending ${data.amount} TON…`);
     }
 
     else {
