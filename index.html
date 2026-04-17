@@ -539,7 +539,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 const API='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
 const WORKER='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
 
-// Token addresses on STON.fi mainnet
+// Token addresses on STON.fi mainnet (common tokens)
 const TOKEN_ADDRS={
   TON:  'ton',
   USDT: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
@@ -547,8 +547,48 @@ const TOKEN_ADDRS={
   NOT:  'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
   DOGS: 'EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS',
   USDE: 'EQCpZNOG9sJJQsxOWE6mGUkK-k09x0f8N3VbwB0H0H_USDE',
+  HMSTR:'EQB02DJ0cdUD4iQDRbBv4aYG3htePHBSKr_tY6x5kvijHMSB',
+  REDO: 'EQAvDfWFG0oYX19jwNDNBBL1rKNoroxGerfbZDSoX4nrkLSg',
 };
-function getAddr(symbol){ return TOKEN_ADDRS[symbol?.toUpperCase()] || null; }
+
+// Token address cache from live search
+const tokenCache = {};
+
+// Resolve token symbol to address — checks hardcoded map first, then STON.fi API
+async function getAddr(symbol){
+  if(!symbol) return null;
+  const up = symbol.toUpperCase();
+
+  // Check hardcoded map
+  if(TOKEN_ADDRS[up]) return TOKEN_ADDRS[up];
+
+  // Check cache
+  if(tokenCache[up]) return tokenCache[up];
+
+  // Search STON.fi API
+  try{
+    const res = await fetch(`https://api.ston.fi/v1/assets?search=${encodeURIComponent(symbol)}&limit=5`);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const assets = data?.asset_list || data?.assets || [];
+
+    // Find best match — prefer exact symbol match with high liquidity
+    const match = assets.find(a =>
+      a.symbol?.toUpperCase() === up &&
+      !a.blacklisted &&
+      a.dex_price_usd
+    ) || assets[0];
+
+    if(match?.contract_address){
+      tokenCache[up] = match.contract_address;
+      console.log(`Resolved ${symbol} → ${match.contract_address}`);
+      return match.contract_address;
+    }
+  }catch(e){
+    console.log('Token search failed:', e);
+  }
+  return null;
+}
 const HK='sage_v3_hist';
 const AK='sage_v3_alerts';
 
@@ -659,15 +699,24 @@ async function fetchWalletData(address){
       balRes?.ok  ? balRes.json()  : null,
       jettonsRes?.ok ? jettonsRes.json() : null,
     ]);
-    // Jetton balances from TON API
+    // Jetton balances from TON API — filter scams and dust
     const jettons = (jettonsData?.balances || [])
-      .filter(j => parseFloat(j.balance||0) > 0)
+      .filter(j => {
+        if(j.jetton?.is_scam) return false;           // filter scam tokens
+        if(!j.jetton?.verification || j.jetton.verification === 'none') {
+          // Only include unverified if USD value > $0.01
+          const usd = parseFloat(j.price?.prices?.USD||0) * (parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9));
+          return usd > 0.01;
+        }
+        return parseFloat(j.balance||0) > 0;
+      })
       .map(j => ({
         symbol: j.jetton?.symbol || '?',
         name: j.jetton?.name || '?',
         balance: parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9),
         usd: parseFloat(j.price?.prices?.USD||0) * (parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9)),
         address: j.jetton?.address,
+        verified: j.jetton?.verification === 'whitelist',
       }));
     // Native TON balance from TON API
     const tonBalance = balData?.balance
@@ -742,16 +791,18 @@ async function fetchWalletData(address){
     const jettonUSD = jettons.reduce((s,j)=>s+j.usd,0);
     totalUSD += jettonUSD;
 
-    return {
+    const result = {
       address,
       totalUSD: totalUSD.toFixed(2),
       tonBalance: tonBalance.toFixed(4),
       tonUSD: tonUSD.toFixed(2),
-      jettons, // raw jetton balances
+      jettons,
       positions,
       swaps,
-      isEmpty: positions.length === 0 && swaps.length === 0 && jettons.length === 0 && tonBalance === 0,
+      isEmpty: positions.length === 0 && jettons.length === 0 && tonBalance === 0,
     };
+    console.log('SAGE wallet data:', JSON.stringify(result));
+    return result;
   }catch(e){
     console.log('Wallet fetch error:', e);
     return null;
@@ -895,10 +946,11 @@ function sendTgAlert(msg){
 
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
-  swap:`For swap requests respond with a SWAP_CARD using real token symbols and amounts the user mentioned.
-Always use actual token names (TON, USDT, STON, NOT, DOGS) never placeholder text.
-Calculate toAmount from current market price in context. Example:
-<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"1","toAmount":"1.39","rate":"1.39","priceImpact":"0.10","slippage":"1.0","risk":"low","riskNote":"Stable pair."}</SWAP_CARD>`,
+  swap:`For swap requests respond with a SWAP_CARD using the exact token symbols the user mentioned.
+SAGE supports ALL 30,000+ tokens on STON.fi — not just common ones. Use whatever symbol the user specifies.
+Calculate toAmount from current market price. Example:
+<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"1","toAmount":"1.39","rate":"1.39","priceImpact":"0.10","slippage":"1.0","risk":"low","riskNote":"Stable pair."}</SWAP_CARD>
+If user asks about an unknown token, still generate the card — the app will search STON.fi live for the address.`,
 
   liquidity:`For liquidity requests respond with:
 <LIQ_CARD>{"action":"add","pool":"TON/USDT","t0":"TON","t1":"USDT","a0":"10","a1":"58.20","share":"0.012","apr":"8.4","tvl":"$2.1M","risk":"low"}</LIQ_CARD>
@@ -919,9 +971,10 @@ For farm listings:
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
 <STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
 
-  portfolio:`For portfolio queries, use ONLY real wallet data. Build the PF_CARD from actual positions:
-<PF_CARD>{"total":"$0.00","lp":"$0.00","farming":"$0.00","staking":"$0.00","positions":[],"tip":"No positions found. Make your first swap to get started."}</PF_CARD>
-Populate with real data if positions exist. Never invent numbers.`,
+  portfolio:`For portfolio queries build PF_CARD using ALL wallet data — TON balance, jettons, AND DeFi positions.
+Total = tonUSD + jetton USD values + LP values. Example structure:
+<PF_CARD>{"total":"$3.01","lp":"$0.00","farming":"$0.00","staking":"$0.00","positions":[{"type":"lp","name":"TON (Native)","value":"$2.78","apr":null},{"type":"lp","name":"NOT","value":"$0.23","apr":null}],"tip":"Your TON is idle. Swap some into a liquidity pool to start earning."}</PF_CARD>
+Always include tonBalance and jettons as positions even if no DeFi activity yet.`,
 
   alerts:`For alert requests respond with:
 <ALERT_CARD>{"alerts":[{"id":"a1","token":"TON","type":"above","target":"7.00","current":"5.82","label":"TON price alert","active":true},{"id":"a2","token":"STON","type":"below","target":"0.07","current":"0.083","label":"STON dip alert","active":true}],"new":{"token":"TON","type":"above","target":"7.00","label":"TON hits $7"}}</ALERT_CARD>`
@@ -954,13 +1007,13 @@ For position queries, use ONLY real wallet data from above. If positions array i
 If positions exist, map them exactly from the real wallet data provided.
 
 Rules:
-- CRITICAL: ONLY use real wallet data provided above. NEVER invent positions, balances, or transactions.
-- If wallet is empty or has no positions, say so honestly. Do not make up data.
-- If wallet is not connected, tell user to connect first.
-- For portfolio/positions queries: use ONLY the real wallet data above to populate cards.
+- CRITICAL: Use the real wallet data provided above. It includes tonBalance, tonUSD, jettons, and DeFi positions.
+- ALWAYS show native TON balance and jetton balances — these are part of the portfolio.
+- Never say "I only track DeFi positions" — you track everything: TON balance, jettons, LP, farming, staking.
+- If wallet data shows tonBalance > 0, show it. If jettons exist, list them.
+- Never invent data. Never say check wallet directly — you have the data.
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
-- Warn about impermanent loss for LP, lock periods for staking.
 - You are SAGE. Never break character.`;
 
   const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
@@ -1135,6 +1188,25 @@ function rStrategy(d){
 }
 
 function rPortfolio(d){
+  // Inject live wallet data if AI didn't include it
+  if(walletData && parseFloat(walletData.tonBalance||0) > 0){
+    if(!d.positions) d.positions = [];
+    const hasTon = d.positions.find(p=>p.name==='TON (Native)');
+    if(!hasTon){
+      d.positions.unshift({type:'lp',name:'TON (Native)',value:'$'+walletData.tonUSD,apr:walletData.tonBalance+' TON'});
+    }
+    // Add jettons
+    (walletData.jettons||[]).forEach(j=>{
+      const has = d.positions.find(p=>p.name===j.symbol);
+      if(!has && j.balance > 0){
+        d.positions.push({type:'lp',name:j.symbol,value:'$'+j.usd.toFixed(2),apr:j.balance.toFixed(2)+' '+j.symbol});
+      }
+    });
+    // Recalculate total
+    const tot = d.positions.reduce((s,p)=>s+parseFloat(p.value?.replace('$','')||0),0);
+    d.total = '$'+tot.toFixed(2);
+    if(d.tip && tot > 0) d.tip = null;
+  }
   const ch=parseFloat(d.changeP||0);
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">📊</span>PORTFOLIO</div>
@@ -1250,10 +1322,11 @@ async function exec(type, data, btn){
 
     // ── Swap ──────────────────────────────────────────────
     if(type === 'swap'){
+      btn.textContent = 'Looking up tokens…';
+      const fromAddr = await getAddr(data.fromToken) || data.fromTokenAddr;
+      const toAddr   = await getAddr(data.toToken)   || data.toTokenAddr;
+      if(!fromAddr || !toAddr) throw new Error(`Token not found on STON.fi: ${!fromAddr?data.fromToken:data.toToken}`);
       btn.textContent = 'Simulating swap…';
-      const fromAddr = getAddr(data.fromToken) || data.fromTokenAddr;
-      const toAddr   = getAddr(data.toToken)   || data.toTokenAddr;
-      if(!fromAddr || !toAddr) throw new Error(`Unknown token: ${!fromAddr?data.fromToken:data.toToken}`);
       const res = await fetch(`${WORKER}/build/swap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1274,8 +1347,8 @@ async function exec(type, data, btn){
     // ── Liquidity ─────────────────────────────────────────
     else if(type === 'liquidity'){
       btn.textContent = 'Simulating liquidity…';
-      const tokenAAddr = getAddr(data.t0) || data.tokenAAddr;
-      const tokenBAddr = getAddr(data.t1) || data.tokenBAddr;
+      const tokenAAddr = await getAddr(data.t0) || data.tokenAAddr;
+      const tokenBAddr = await getAddr(data.t1) || data.tokenBAddr;
       if(!tokenAAddr || !tokenBAddr) throw new Error('Unknown token in pair');
       const res = await fetch(`${WORKER}/build/liquidity`, {
         method: 'POST',
