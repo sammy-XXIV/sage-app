@@ -1,7 +1,11 @@
 {
-  "url": "https://sammy-XXIV.github.io/sage-app",
-  "name": "SAGE",
-  "iconUrl": "https://sammy-XXIV.github.io/sage-app/icon.png",
-  "termsOfUseUrl": "https://sammy-XXIV.github.io/sage-app",
-  "privacyPolicyUrl": "https://sammy-XXIV.github.io/sage-app"
+  "name": "sage-worker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "worker-full.js",
+  "dependencies": {
+    "@ston-fi/sdk": "latest",
+    "@ston-fi/api": "latest",
+    "@ton/ton": "latest"
+  }
 }
