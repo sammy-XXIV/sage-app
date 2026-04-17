@@ -644,24 +644,34 @@ async function connectWallet(){if(!tcUI)return;walletOK?await tcUI.disconnect():
 async function fetchWalletData(address){
   if(!address) return null;
   try{
-    const [lpRes, farmRes, opsRes, balRes] = await Promise.all([
+    const [lpRes, farmRes, opsRes, balRes, jettonsRes] = await Promise.all([
       fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
-      fetch(`https://api.ston.fi/v1/wallets/${address}`).catch(()=>null),
+      fetch(`https://tonapi.io/v2/accounts/${address}`).catch(()=>null),
+      fetch(`https://tonapi.io/v2/accounts/${address}/jettons?currencies=usd`).catch(()=>null),
     ]);
 
-    const [lpData, farmData, opsData, balData] = await Promise.all([
+    const [lpData, farmData, opsData, balData, jettonsData] = await Promise.all([
       lpRes?.ok  ? lpRes.json()  : null,
       farmRes?.ok ? farmRes.json() : null,
       opsRes?.ok  ? opsRes.json()  : null,
       balRes?.ok  ? balRes.json()  : null,
+      jettonsRes?.ok ? jettonsRes.json() : null,
     ]);
-    // Native TON balance from STON.fi wallet endpoint
-    const tonBalance = balData?.wallet?.ton_balance
-      ? parseFloat(balData.wallet.ton_balance) / 1e9
-      : balData?.ton_balance
-      ? parseFloat(balData.ton_balance) / 1e9
+    // Jetton balances from TON API
+    const jettons = (jettonsData?.balances || [])
+      .filter(j => parseFloat(j.balance||0) > 0)
+      .map(j => ({
+        symbol: j.jetton?.symbol || '?',
+        name: j.jetton?.name || '?',
+        balance: parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9),
+        usd: parseFloat(j.price?.prices?.USD||0) * (parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9)),
+        address: j.jetton?.address,
+      }));
+    // Native TON balance from TON API
+    const tonBalance = balData?.balance
+      ? parseFloat(balData.balance) / 1e9
       : 0;
     const tonPrice = market?.TON?.price || 0;
     const tonUSD = tonBalance * tonPrice;
@@ -728,12 +738,19 @@ async function fetchWalletData(address){
         time: o.created_at,
       }));
 
+    // Add jetton balances to total
+    const jettonUSD = jettons.reduce((s,j)=>s+j.usd,0);
+    totalUSD += jettonUSD;
+
     return {
       address,
       totalUSD: totalUSD.toFixed(2),
+      tonBalance: tonBalance.toFixed(4),
+      tonUSD: tonUSD.toFixed(2),
+      jettons, // raw jetton balances
       positions,
       swaps,
-      isEmpty: positions.length === 0 && swaps.length === 0,
+      isEmpty: positions.length === 0 && swaps.length === 0 && jettons.length === 0 && tonBalance === 0,
     };
   }catch(e){
     console.log('Wallet fetch error:', e);
@@ -878,8 +895,10 @@ function sendTgAlert(msg){
 
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
-  swap:`For swap requests respond with:
-<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"20","toAmount":"calculate_from_live_rate","rate":"use_live_market_rate","priceImpact":"0.12","slippage":"1.0","risk":"low","riskNote":"Stable pair, minimal risk."}</SWAP_CARD>`,
+  swap:`For swap requests respond with a SWAP_CARD using real token symbols and amounts the user mentioned.
+Always use actual token names (TON, USDT, STON, NOT, DOGS) never placeholder text.
+Calculate toAmount from current market price in context. Example:
+<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"1","toAmount":"1.39","rate":"1.39","priceImpact":"0.10","slippage":"1.0","risk":"low","riskNote":"Stable pair."}</SWAP_CARD>`,
 
   liquidity:`For liquidity requests respond with:
 <LIQ_CARD>{"action":"add","pool":"TON/USDT","t0":"TON","t1":"USDT","a0":"10","a1":"58.20","share":"0.012","apr":"8.4","tvl":"$2.1M","risk":"low"}</LIQ_CARD>
@@ -918,7 +937,14 @@ async function askAI(msg){
 Market: ${mktCtx()}
 Context mode: ${mode} (but always respond to what the user actually asks, regardless of mode)
 Wallet: ${walletOK?'Connected ('+walletAddr?.slice(0,8)+'...)':'Disconnected'}
-Real wallet data: ${walletData ? JSON.stringify(walletData) : 'No wallet connected or data not loaded yet'}
+Real wallet data: ${walletData ? JSON.stringify({
+    tonBalance: walletData.tonBalance,
+    tonUSD: walletData.tonUSD,
+    jettons: walletData.jettons,
+    positions: walletData.positions,
+    isEmpty: walletData.isEmpty
+  }) : 'No wallet connected or data not loaded yet'}
+Current TON price: $${market.TON?.price?.toFixed(4)||'unknown'}
 Time: ${new Date().toISOString()}
 
 ${MODE_PROMPTS[mode]||''}
@@ -1496,4 +1522,3 @@ function initParticles(){
 </script>
 </body>
 </html>
-
