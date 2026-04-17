@@ -1363,12 +1363,15 @@ function renderAI(text){
 
 // ── Execute ───────────────────────────────────────────────
 // ── Omniston swap via browser WebSocket ──────────────────
+const PTON_V2    = 'EQBnGWMCf3-FZZq1W4IWcWiGAc3PHuZ0_H-7sad2oY00o83S';
+const TON_NATIVE = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
+
 function omnistonSwap(offerAddr, askAddr, units, slipBps, walletAddress) {
   return new Promise((resolve, reject) => {
-    const TON_NATIVE = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
     const ws = new WebSocket('wss://omni-ws.ston.fi');
     let quote = null;
-    const t = setTimeout(() => { ws.close(); reject(new Error('No quote received — try again')); }, 20000);
+    // 30 second timeout — some tokens take longer to get quotes
+    const t = setTimeout(() => { ws.close(); reject(new Error('No quote received — token may have low liquidity on Omniston')); }, 30000);
 
     ws.onopen = () => ws.send(JSON.stringify({
       jsonrpc: '2.0', id: '1', method: 'v1beta7.quote',
@@ -1378,13 +1381,17 @@ function omnistonSwap(offerAddr, askAddr, units, slipBps, walletAddress) {
         amount: { bid_units: units },
         referrer_fee_bps: 0,
         settlement_methods: [0],
-        settlement_params: { max_price_slippage_bps: slipBps, max_outgoing_messages: 4, gasless_settlement: 0 }
+        settlement_params: {
+          max_price_slippage_bps: slipBps,
+          max_outgoing_messages: 4,
+          gasless_settlement: 0,
+          flexible_referrer_fee: true,
+        }
       }
     }));
 
     ws.onmessage = (event) => {
       let msg; try { msg = JSON.parse(event.data); } catch { return; }
-
       if (msg.method === 'quote_updated' && msg.params?.quote && !quote) {
         quote = msg.params.quote;
         ws.send(JSON.stringify({
@@ -1397,7 +1404,6 @@ function omnistonSwap(offerAddr, askAddr, units, slipBps, walletAddress) {
           }
         }));
       }
-
       if (msg.id === '2' && msg.result?.transaction?.ton?.messages) {
         clearTimeout(t); ws.close();
         resolve({
@@ -1405,8 +1411,7 @@ function omnistonSwap(offerAddr, askAddr, units, slipBps, walletAddress) {
           transaction: {
             validUntil: Math.floor(Date.now() / 1000) + 300,
             messages: msg.result.transaction.ton.messages.map(m => ({
-              address: m.target_address,
-              amount:  m.send_amount,
+              address: m.target_address, amount: m.send_amount,
               ...(m.payload ? { payload: m.payload } : {}),
             }))
           }
@@ -1414,7 +1419,7 @@ function omnistonSwap(offerAddr, askAddr, units, slipBps, walletAddress) {
       }
       if (msg.error) { clearTimeout(t); ws.close(); reject(new Error(msg.error.message || JSON.stringify(msg.error))); }
     };
-    ws.onerror = () => { clearTimeout(t); reject(new Error('WebSocket connection failed')); };
+    ws.onerror = () => { clearTimeout(t); reject(new Error('WebSocket error — check connection')); };
   });
 }
 
@@ -1721,4 +1726,3 @@ function initParticles(){
 </script>
 </body>
 </html>
-
