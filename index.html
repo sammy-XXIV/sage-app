@@ -996,8 +996,9 @@ For pool browsing:
 For farm listings:
 <FARMS_CARD>{"farms":[{"name":"TON/USDT","base":"8.4","bonus":"14.0","total":"22.4","tvl":"$2.1M"},{"name":"STON/TON","base":"6.2","bonus":"18.3","total":"24.5","tvl":"$890K"},{"name":"NOT/TON","base":"9.1","bonus":"9.1","total":"18.2","tvl":"$1.2M"}]}</FARMS_CARD>`,
 
-  staking:`For staking requests respond with:
-<STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>`,
+  staking:`For staking requests respond with a STAKE_CARD. Calculate gemston = amount * (duration/12) * 2.5. Calculate unlocks date from today + duration months. Example for 500 STON 12 months:
+<STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2026"}</STAKE_CARD>
+Always fill ALL fields with real calculated values. Never leave fields as undefined.`,
 
   limitorder:`For limit order requests respond with:
 <LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","target":"0.005","current":"0.0061","amount":"500","pay":"2.5","expiry":"7 days"}</LIMIT_CARD>`,
@@ -1672,3 +1673,4 @@ function initParticles(){
 </script>
 </body>
 </html>
+
