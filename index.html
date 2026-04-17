@@ -1423,13 +1423,12 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
     });
   }
 
+  // Address must be in user-friendly bounceable format for TON Connect
+  const toAddr = txParams.to.toString({ bounceable: true, urlSafe: true });
+  const payload = txParams.body ? txParams.body.toBoc().toString('base64') : undefined;
   return {
     validUntil: Math.floor(Date.now() / 1000) + 300,
-    messages: [{
-      address: txParams.to.toString(),
-      amount:  txParams.value.toString(),
-      payload: txParams.body?.toBoc().toString('base64') ?? '',
-    }]
+    messages: [{ address: toAddr, amount: txParams.value.toString(), ...(payload ? { payload } : {}) }]
   };
 }
 
