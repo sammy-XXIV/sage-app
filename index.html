@@ -989,14 +989,15 @@ async function askAI(msg){
 
 Market: ${mktCtx()}
 Context mode: ${mode} (but always respond to what the user actually asks, regardless of mode)
-Wallet: ${walletOK?'Connected ('+walletAddr?.slice(0,8)+'...)':'Disconnected'}
+Wallet: ${walletAddr?'Connected — address: '+walletAddr:'NOT CONNECTED — ask user to tap Connect button'}
+Wallet address: ${walletAddr || 'none'}
 Real wallet data: ${walletData ? JSON.stringify({
     tonBalance: walletData.tonBalance,
     tonUSD: walletData.tonUSD,
     jettons: walletData.jettons,
     positions: walletData.positions,
     isEmpty: walletData.isEmpty
-  }) : 'No wallet connected or data not loaded yet'}
+  }) : walletAddr ? 'Wallet connected but data still loading — tell user to wait a moment and retry' : 'No wallet connected'}
 Current TON price: $${market.TON?.price?.toFixed(4)||'unknown'}
 Time: ${new Date().toISOString()}
 
@@ -1586,6 +1587,8 @@ function initParticles(){
   updateChips();
   await initTON();
   await loadMarket();
+  // If wallet already connected from previous session, load data immediately
+  if(walletAddr) await refreshWalletData();
   restoreH();
   if(!history.length)greetNoWallet();
   setInterval(loadMarket,60000);
@@ -1595,3 +1598,4 @@ function initParticles(){
 </script>
 </body>
 </html>
+
