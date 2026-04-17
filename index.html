@@ -687,7 +687,20 @@ async function fetchWalletData(address){
     // TON API uses the raw address format (0:...) — convert if needed
     const rawAddr = address.startsWith('0:') ? address : address;
     // Use timeout to avoid hanging forever
-    const fetchWithTimeout = (url, ms=8000) => {
+    // Route through Worker to avoid CORS — Worker fetches all in parallel
+    const workerRes = await fetch(`${WORKER}/wallet`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({address})
+    }).catch(()=>null);
+
+    if(workerRes?.ok){
+      const data = await workerRes.json();
+      if(data.ok) return data.wallet;
+    }
+
+    // Fallback: direct STON.fi calls (may work on some networks)
+    const fetchWithTimeout = (url, ms=6000) => {
       const controller = new AbortController();
       const timer = setTimeout(()=>controller.abort(), ms);
       return fetch(url, {signal:controller.signal})
@@ -699,8 +712,8 @@ async function fetchWalletData(address){
       fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`),
       fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/farms`),
       fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`),
-      fetchWithTimeout(`https://tonapi.io/v2/accounts/${rawAddr}`),
-      fetchWithTimeout(`https://tonapi.io/v2/accounts/${rawAddr}/jettons?currencies=usd`),
+      fetchWithTimeout(`https://tonapi.io/v2/accounts/${address}`),
+      fetchWithTimeout(`https://tonapi.io/v2/accounts/${address}/jettons?currencies=usd`),
     ]);
 
     const [lpData, farmData, opsData, balData, jettonsData] = await Promise.all([
