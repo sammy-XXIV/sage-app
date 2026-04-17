@@ -684,12 +684,23 @@ async function connectWallet(){if(!tcUI)return;walletOK?await tcUI.disconnect():
 async function fetchWalletData(address){
   if(!address) return null;
   try{
+    // TON API uses the raw address format (0:...) — convert if needed
+    const rawAddr = address.startsWith('0:') ? address : address;
+    // Use timeout to avoid hanging forever
+    const fetchWithTimeout = (url, ms=8000) => {
+      const controller = new AbortController();
+      const timer = setTimeout(()=>controller.abort(), ms);
+      return fetch(url, {signal:controller.signal})
+        .catch(()=>null)
+        .finally(()=>clearTimeout(timer));
+    };
+
     const [lpRes, farmRes, opsRes, balRes, jettonsRes] = await Promise.all([
-      fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
-      fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
-      fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
-      fetch(`https://tonapi.io/v2/accounts/${address}`).catch(()=>null),
-      fetch(`https://tonapi.io/v2/accounts/${address}/jettons?currencies=usd`).catch(()=>null),
+      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`),
+      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/farms`),
+      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`),
+      fetchWithTimeout(`https://tonapi.io/v2/accounts/${rawAddr}`),
+      fetchWithTimeout(`https://tonapi.io/v2/accounts/${rawAddr}/jettons?currencies=usd`),
     ]);
 
     const [lpData, farmData, opsData, balData, jettonsData] = await Promise.all([
@@ -811,10 +822,19 @@ async function fetchWalletData(address){
 
 // Cache wallet data
 let walletData = null;
+let walletLoading = false;
+
 async function refreshWalletData(){
   if(!walletAddr) return;
-  walletData = await fetchWalletData(walletAddr);
-  console.log('Wallet data:', walletData);
+  if(walletLoading) return;
+  walletLoading = true;
+  try{
+    walletData = await fetchWalletData(walletAddr);
+    console.log('SAGE wallet data:', JSON.stringify(walletData));
+  }catch(e){
+    console.log('Wallet refresh error:', e);
+  }
+  walletLoading = false;
 }
 
 
@@ -997,7 +1017,7 @@ Real wallet data: ${walletData ? JSON.stringify({
     jettons: walletData.jettons,
     positions: walletData.positions,
     isEmpty: walletData.isEmpty
-  }) : walletAddr ? 'Wallet connected but data still loading — tell user to wait a moment and retry' : 'No wallet connected'}
+  }) : walletAddr ? 'Wallet connected. Data fetch may have failed — tell user their wallet IS connected at address '+walletAddr+' but to try refreshing or ask again' : 'No wallet connected'}
 Current TON price: $${market.TON?.price?.toFixed(4)||'unknown'}
 Time: ${new Date().toISOString()}
 
@@ -1516,6 +1536,11 @@ async function send(){
   applyAccent(mode);
   addMsg('user',`<div class="bubble">${esc(txt)}</div>`);
   addH('user',txt);showTyping();
+  // Auto-refresh wallet data if asking about balance/portfolio and data is stale
+  const needsWallet = /balance|portfolio|position|wallet|holding|token|jetton/i.test(txt);
+  if(needsWallet && walletAddr && !walletData && !walletLoading){
+    refreshWalletData(); // fire and don't await — data arrives before AI responds
+  }
 
   try{
     const resp=await askAI(txt);
@@ -1598,4 +1623,3 @@ function initParticles(){
 </script>
 </body>
 </html>
-
