@@ -1413,7 +1413,7 @@ async function exec(type, data, btn){
       const tokenAAddr = await getAddr(data.t0) || data.tokenAAddr;
       const tokenBAddr = await getAddr(data.t1) || data.tokenBAddr;
       if(!tokenAAddr || !tokenBAddr) throw new Error('Unknown token in pair');
-      const res = await fetch(`${WORKER}/build/liquidity`, {
+      const res = await fetch(`${SWAP}/build/liquidity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
