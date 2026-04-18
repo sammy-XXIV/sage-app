@@ -1540,121 +1540,67 @@ function initParticles(){
 <script>
 (function(){
   var cv=document.getElementById('splashCanvas'),ctx=cv.getContext('2d');
-  var W,H,particles=[],rings=[],frame=0,floor=0;
-  var B={x:0,y:-70,vy:10,bounces:0,phase:'drop',r:30};
-  var M={t:0,x:0,y:0,r:30,targetY:0,fx:0,fy:0,fr:0};
+  var W,H,frame=0,floor=0;
   var splashHidden=false,contentShown=false,autoTimer=null;
+
+  var B={x:0,y:-80,vy:11,bounces:0,phase:'drop',r:32};
+  var M={t:0,x:0,y:0,r:32,targetY:0,fx:0,fy:0,fr:0};
+  var squish={t:0}; // squish timer per bounce
 
   function resize(){
     W=cv.width=window.innerWidth;
     H=cv.height=window.innerHeight;
-    floor=H*0.52; M.targetY=H*0.36;
+    floor=H*0.54; M.targetY=H*0.35;
     if(B.phase==='drop'&&B.y<0) B.x=W/2;
   }
 
-  // Perfect regular octagon — flat top/bottom like the logo
-  function drawOct(x,y,r){
-    ctx.beginPath();
-    for(var i=0;i<8;i++){
-      var a=(i/8)*Math.PI*2 + Math.PI/8; // +PI/8 gives flat top
-      var px=x+r*Math.cos(a), py=y+r*Math.sin(a);
-      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
-    }
-    ctx.closePath();
-  }
-
-  // Morph: t=0 → circle, t=1 → octagon
-  function drawShape(x,y,r,t,textAlpha){
-    t=Math.max(0,Math.min(1,t));
-    var et=t*t*(3-2*t); // smoothstep
+  function drawShape(x,y,r,morphT,squishX,squishY,textAlpha){
+    morphT=Math.max(0,Math.min(1,morphT));
+    var et=morphT*morphT*(3-2*morphT);
 
     ctx.save();
-    ctx.shadowBlur=t<0.5?40:20;
-    ctx.shadowColor='#2563eb';
-
-    // Gradient fill
-    var g=ctx.createRadialGradient(x-r*.2,y-r*.25,r*.05,x,y,r*1.05);
-    g.addColorStop(0,'#4f94f7');
-    g.addColorStop(0.5,'#2563eb');
-    g.addColorStop(1,'#1a4fd6');
-    ctx.fillStyle=g;
-
+    ctx.translate(x,y);
+    ctx.scale(squishX,squishY);
+    ctx.translate(-x,-y);
+    ctx.fillStyle='#2563eb';
     ctx.beginPath();
     var N=256;
     for(var i=0;i<=N;i++){
-      var frac=i/N;
-      var angle=frac*Math.PI*2;
-
-      // Circle point
-      var cx2=x+r*Math.cos(angle);
-      var cy2=y+r*Math.sin(angle);
-
-      // Octagon point — find the two nearest vertices and interpolate
-      var seg=((angle/(Math.PI*2))*8+8)%8;
+      var frac=i/N, angle=frac*Math.PI*2;
+      var cx2=x+r*Math.cos(angle), cy2=y+r*Math.sin(angle);
+      var seg=((angle-Math.PI/8+Math.PI*2)%(Math.PI*2))/(Math.PI*2)*8;
       var si=Math.floor(seg), sf=seg-si;
-      var a0=(si/8)*Math.PI*2+Math.PI/8;
-      var a1=((si+1)/8)*Math.PI*2+Math.PI/8;
+      var a0=(si/8)*Math.PI*2+Math.PI/8, a1=((si+1)/8)*Math.PI*2+Math.PI/8;
       var ox=x+r*Math.cos(a0)+(r*Math.cos(a1)-r*Math.cos(a0))*sf;
       var oy=y+r*Math.sin(a0)+(r*Math.sin(a1)-r*Math.sin(a0))*sf;
-
-      var nx=cx2+(ox-cx2)*et;
-      var ny=cy2+(oy-cy2)*et;
+      var nx=cx2+(ox-cx2)*et, ny=cy2+(oy-cy2)*et;
       i===0?ctx.moveTo(nx,ny):ctx.lineTo(nx,ny);
     }
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
 
-    // SAGE text fades in
     if(textAlpha>0){
-      ctx.shadowBlur=0;
+      ctx.save();
       ctx.globalAlpha=textAlpha;
       ctx.fillStyle='#ffffff';
       ctx.font='bold '+(r*0.78)+'px "Bebas Neue",sans-serif';
       ctx.textAlign='center';
       ctx.textBaseline='middle';
-      ctx.letterSpacing='3px';
       ctx.fillText('SAGE',x,y+2);
+      ctx.restore();
     }
-    ctx.restore();
-  }
-
-  // Particles
-  function Pt(x,y,a,s,sz,col,life){
-    this.x=x;this.y=y;this.vx=Math.cos(a)*s;this.vy=Math.sin(a)*s;
-    this.sz=sz;this.col=col;this.life=life;this.ml=life;
-  }
-  Pt.prototype.tick=function(){this.x+=this.vx;this.y+=this.vy;this.vy+=.1;this.vx*=.97;this.life--;return this.life>0;};
-  Pt.prototype.draw=function(){
-    var a=this.life/this.ml;
-    ctx.save();ctx.globalAlpha=a;ctx.fillStyle=this.col;
-    ctx.beginPath();ctx.arc(this.x,this.y,this.sz*a,0,Math.PI*2);ctx.fill();ctx.restore();
-  };
-
-  function burst(x,y){
-    var cols=['#3b82f6','#60a5fa','#93c5fd','#fff','#1d4ed8','#bfdbfe'];
-    for(var i=0;i<55;i++){
-      var a=Math.random()*Math.PI*2,spd=2+Math.random()*9;
-      particles.push(new Pt(x,y,a,spd,1.5+Math.random()*4,cols[i%6],28+Math.random()*32));
-    }
-    for(var i=0;i<25;i++){
-      var a=-Math.PI/2+(Math.random()-.5)*2.5,spd=5+Math.random()*12;
-      particles.push(new Pt(x,y,a,spd,1,'#fff',35+Math.random()*25));
-    }
-    rings.push({x:x,y:y,r:B.r,a:1,sp:8});
-    rings.push({x:x,y:y,r:B.r*.5,a:.7,sp:13});
   }
 
   function showContent(){
     if(contentShown)return; contentShown=true;
-    var els=['spSub','spBadge','spBtn'];
-    var delays=[300,450,600];
-    els.forEach(function(id,i){
+    ['spSub','spBadge','spBtn'].forEach(function(id,i){
       setTimeout(function(){
         var el=document.getElementById(id);
         if(el){el.style.opacity=1;el.style.transform='translateY(0)';}
-      },delays[i]);
+      },i*180+250);
     });
-    autoTimer=setTimeout(hideSplash,4200);
+    autoTimer=setTimeout(hideSplash,4500);
   }
 
   window.hideSplash=function(){
@@ -1670,51 +1616,42 @@ function initParticles(){
     frame++;
     ctx.clearRect(0,0,W,H);
 
-    // DROP phase
     if(B.phase==='drop'){
-      B.vy+=.55; B.y+=B.vy;
-      // Trail
-      ctx.save();ctx.globalAlpha=.18;ctx.fillStyle='#3b82f6';
-      ctx.beginPath();ctx.ellipse(B.x,B.y+B.r*.6,B.r*.28,B.r*1.4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+      B.vy+=0.6; B.y+=B.vy;
+
+      // Squish on bounce — quick spring back
+      var sx=1, sy=1;
+      if(squish.t>0){
+        var sq=Math.sin(squish.t*Math.PI);
+        sx=1+sq*0.35; sy=1-sq*0.3;
+        squish.t=Math.max(0,squish.t-0.08);
+      }
 
       if(B.y+B.r>=floor){
         B.y=floor-B.r; B.bounces++;
-        if(B.bounces===1) B.vy=-B.vy*.52;
-        else if(B.bounces===2) B.vy=-B.vy*.36;
-        else{ B.phase='morph'; M.t=0; M.x=B.x; M.y=B.y; M.r=B.r; burst(B.x,floor); }
+        squish.t=1;
+        if(B.bounces===1) B.vy=-B.vy*0.52;
+        else if(B.bounces===2) B.vy=-B.vy*0.36;
+        else{ B.phase='morph'; M.t=0; M.x=B.x; M.y=floor-B.r; M.r=B.r; }
       }
-      drawShape(B.x,B.y,B.r,0,0);
+
+      drawShape(B.x,B.y,B.r,0,sx,sy,0);
     }
 
-    // MORPH phase — circle morphs into octagon + floats up
     if(B.phase==='morph'){
-      M.t+=.012;
+      M.t+=0.013;
       var t=Math.min(M.t,1);
       var ease=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
       M.y=(floor-M.r)+(M.targetY-(floor-M.r))*ease;
-      var r=M.r*(1+ease*.18);
-      var textA=Math.max(0,(t-.55)*2.2);
-      drawShape(M.x,M.y,r,t,textA);
+      var r=M.r*(1+ease*0.15);
+      var textA=Math.max(0,(t-0.5)*2);
+      drawShape(M.x,M.y,r,t,1,1,textA);
       if(M.t>=1){ B.phase='done'; M.fx=M.x; M.fy=M.y; M.fr=r; showContent(); }
     }
 
-    // DONE — gentle glow pulse
     if(B.phase==='done'&&M.fx){
-      var pulse=1+Math.sin(frame*.04)*.012;
-      drawShape(M.fx,M.fy,M.fr*pulse,1,1);
+      drawShape(M.fx,M.fy,M.fr,1,1,1,1);
     }
-
-    // Draw particles
-    particles=particles.filter(function(p){var a=p.tick();if(a)p.draw();return a;});
-
-    // Draw rings
-    rings=rings.filter(function(rg){
-      rg.r+=rg.sp; rg.a-=.038;
-      if(rg.a<=0)return false;
-      ctx.save();ctx.strokeStyle='rgba(96,165,250,'+rg.a+')';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,Math.PI*2);ctx.stroke();ctx.restore();
-      return true;
-    });
 
     if(!splashHidden) requestAnimationFrame(animate);
   }
@@ -1726,4 +1663,3 @@ function initParticles(){
 </script>
 </body>
 </html>
-
