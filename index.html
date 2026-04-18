@@ -678,27 +678,40 @@ async function connectWallet(){if(!tcUI)return;walletOK?await tcUI.disconnect():
 async function fetchWalletData(address){
   if(!address) return null;
   try{
-    const [lpRes, farmRes, opsRes, balRes] = await Promise.all([
+    const [lpRes, farmRes, opsRes, balRes, jetRes] = await Promise.all([
       fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
       fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
-      fetch(`https://api.ston.fi/v1/wallets/${address}`).catch(()=>null),
+      fetch(`https://tonapi.io/v2/accounts/${address}`).catch(()=>null),
+      fetch(`https://tonapi.io/v2/accounts/${address}/jettons?currencies=usd`).catch(()=>null),
     ]);
 
-    const [lpData, farmData, opsData, balData] = await Promise.all([
+    const [lpData, farmData, opsData, balData, jetData] = await Promise.all([
       lpRes?.ok  ? lpRes.json()  : null,
       farmRes?.ok ? farmRes.json() : null,
       opsRes?.ok  ? opsRes.json()  : null,
       balRes?.ok  ? balRes.json()  : null,
+      jetRes?.ok  ? jetRes.json()  : null,
     ]);
-    // Native TON balance from STON.fi wallet endpoint
-    const tonBalance = balData?.wallet?.ton_balance
-      ? parseFloat(balData.wallet.ton_balance) / 1e9
-      : balData?.ton_balance
-      ? parseFloat(balData.ton_balance) / 1e9
-      : 0;
+    // Native TON balance from TONapi
+    const tonBalance = balData?.balance ? parseFloat(balData.balance)/1e9 : 0;
     const tonPrice = market?.TON?.price || 0;
     const tonUSD = tonBalance * tonPrice;
+
+    // Jettons from TONapi
+    const jettons = (jetData?.balances || [])
+      .filter(j => {
+        if(j.jetton?.is_scam) return false;
+        const bal = parseFloat(j.balance||0)/Math.pow(10, j.jetton?.decimals||9);
+        const usd = parseFloat(j.price?.prices?.USD||0)*bal;
+        return j.jetton?.verification && j.jetton.verification!=='none' ? bal>0 : usd>0.01;
+      })
+      .map(j => ({
+        symbol: j.jetton?.symbol||'?',
+        balance: parseFloat(j.balance||0)/Math.pow(10, j.jetton?.decimals||9),
+        usd: parseFloat(j.price?.prices?.USD||0)*(parseFloat(j.balance||0)/Math.pow(10, j.jetton?.decimals||9)),
+        address: j.jetton?.address,
+      }));
     if(tonBalance > 0){
       totalUSD += tonUSD;
       positions.push({
@@ -764,10 +777,13 @@ async function fetchWalletData(address){
 
     return {
       address,
+      tonBalance: tonBalance.toFixed(4),
+      tonUSD: tonUSD.toFixed(2),
+      jettons,
       totalUSD: totalUSD.toFixed(2),
       positions,
       swaps,
-      isEmpty: positions.length === 0 && swaps.length === 0,
+      isEmpty: positions.length === 0 && jettons.length === 0 && tonBalance === 0,
     };
   }catch(e){
     console.log('Wallet fetch error:', e);
