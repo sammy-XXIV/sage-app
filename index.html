@@ -481,9 +481,10 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 <script type="module">
 // Load STON.fi SDK from CDN for swap transaction building
 import { DEX, pTON } from 'https://esm.sh/@ston-fi/sdk@2.2.0';
-import { TonClient } from 'https://esm.sh/@ton/ton@15.1.0';
+import { TonClient, Address } from 'https://esm.sh/@ton/ton@15.1.0';
 window._stonfiDEX = DEX;
 window._stonfiPTON = pTON;
+window._tonCore = { Address };
 window._tonClient = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
 window._stonfiReady = true;
 console.log('STON.fi SDK loaded');
@@ -1384,11 +1385,15 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
 
   const DEX   = window._stonfiDEX;
   const pTON  = window._stonfiPTON;
+  const { Address } = window._tonCore;
   const client = window._tonClient;
   const isTon    = !fromToken || fromToken === 'ton' || fromToken === TON_NATIVE;
   const isTonAsk = !toToken   || toToken   === 'ton' || toToken   === TON_NATIVE;
   const offerUnits = BigInt(Math.round(parseFloat(fromAmount) * 1e9));
   const minAsk = '1'; // minimum 1 nano
+
+  // Normalize wallet address to raw string for SDK
+  const normalizedWallet = Address.parse(walletAddress).toRawString();
 
   const router = client.open(new DEX.v1.Router());
   const proxyTon = new pTON.v1();
@@ -1396,7 +1401,7 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
   let txParams;
   if (isTon) {
     txParams = await router.getSwapTonToJettonTxParams({
-      userWalletAddress: walletAddress,
+      userWalletAddress: normalizedWallet,
       proxyTon,
       offerAmount: offerUnits,
       askJettonAddress: toToken,
@@ -1405,7 +1410,7 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
     });
   } else if (isTonAsk) {
     txParams = await router.getSwapJettonToTonTxParams({
-      userWalletAddress: walletAddress,
+      userWalletAddress: normalizedWallet,
       offerJettonAddress: fromToken,
       offerAmount: offerUnits,
       proxyTon,
@@ -1414,7 +1419,7 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
     });
   } else {
     txParams = await router.getSwapJettonToJettonTxParams({
-      userWalletAddress: walletAddress,
+      userWalletAddress: normalizedWallet,
       offerJettonAddress: fromToken,
       offerAmount: offerUnits,
       askJettonAddress: toToken,
@@ -1423,19 +1428,29 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
     });
   }
 
-  // Handle both string and Address object from SDK
-  let toAddr = txParams.to;
-  if (typeof toAddr !== 'string') {
-    // Try different toString formats
-    try { toAddr = toAddr.toString({ bounceable: true, urlSafe: true }); }
-    catch { try { toAddr = toAddr.toRawString(); } 
-    catch { toAddr = String(toAddr); } }
+  // Serialize address
+  let toAddr;
+  try { toAddr = txParams.to.toString({ bounceable: true, urlSafe: true }); }
+  catch(e1) {
+    try { toAddr = txParams.to.toString(); }
+    catch(e2) { toAddr = String(txParams.to); }
   }
-  const payload = txParams.body ? txParams.body.toBoc().toString('base64') : undefined;
-  toast('Address: ' + toAddr.slice(0,20) + '...');
+
+  // Serialize payload
+  let payload;
+  try {
+    if (txParams.body) {
+      const boc = txParams.body.toBoc();
+      // toBoc returns Uint8Array or Buffer — convert to base64
+      if (typeof boc === 'string') payload = boc;
+      else payload = btoa(String.fromCharCode(...new Uint8Array(boc)));
+    }
+  } catch(e) { console.warn('payload err:', e); }
+
+  toast('to: ' + String(toAddr).slice(0,15) + ' amt:' + String(txParams.value));
   return {
     validUntil: Math.floor(Date.now() / 1000) + 300,
-    messages: [{ address: toAddr, amount: txParams.value.toString(), ...(payload ? { payload } : {}) }]
+    messages: [{ address: String(toAddr), amount: String(txParams.value), ...(payload ? { payload } : {}) }]
   };
 }
 
