@@ -1377,6 +1377,20 @@ function renderAI(text){
 const PTON_V2    = 'EQBnGWMCf3-FZZq1W4IWcWiGAc3PHuZ0_H-7sad2oY00o83S';
 const TON_NATIVE = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
 
+// Convert any TON address to raw 0:hex for SDK compatibility
+function toRawAddr(addr) {
+  if (!addr) return addr;
+  if (addr.includes(':')) return addr; // already raw
+  try {
+    const b64 = addr.replace(/-/g,'+').replace(/_/g,'/');
+    const pad = b64 + '='.repeat((4-b64.length%4)%4);
+    const buf = Uint8Array.from(atob(pad), c=>c.charCodeAt(0));
+    const wc = buf[1] === 255 ? -1 : buf[1];
+    const hex = Array.from(buf.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    return `${wc}:${hex}`;
+  } catch(e) { return addr; }
+}
+
 async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippage) {
   // Wait for SDK to load
   let tries = 0;
@@ -1392,8 +1406,8 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
   const offerUnits = BigInt(Math.round(parseFloat(fromAmount) * 1e9));
   const minAsk = '1'; // minimum 1 nano
 
-  // Normalize wallet address to raw string for SDK
-  const normalizedWallet = Address.parse(walletAddress).toRawString();
+  // Normalize wallet address to raw 0:hex for SDK
+  const normalizedWallet = toRawAddr(walletAddress);
 
   const router = client.open(new DEX.v1.Router());
   const proxyTon = new pTON.v1();
