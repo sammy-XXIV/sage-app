@@ -477,10 +477,30 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 /* Shimmer */
 .shim{background:linear-gradient(90deg,var(--s1) 25%,var(--s2) 50%,var(--s1) 75%);background-size:200% 100%;animation:shim 1.5s infinite;border-radius:4px}
 @keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── Splash ─── */
+#splash{position:fixed;inset:0;z-index:9999;background:#050a14;overflow:hidden;}
+#splashCanvas{position:absolute;inset:0;width:100%;height:100%;}
+.spc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.sp-title{font-family:'Bebas Neue',sans-serif;font-size:52px;color:#fff;letter-spacing:6px;margin-top:140px;opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease;}
+.sp-sub{font-size:12px;color:rgba(255,255,255,.45);letter-spacing:2px;margin-top:6px;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+.sp-badge{display:flex;align-items:center;gap:7px;margin-top:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);padding:5px 14px;border-radius:20px;font-size:11px;color:rgba(255,255,255,.4);opacity:0;transition:opacity .5s ease;}
+.sp-badge b{color:rgba(255,255,255,.7);}
+.sp-btn{margin-top:40px;padding:13px 46px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:30px;font-size:15px;font-weight:600;letter-spacing:1px;cursor:pointer;pointer-events:all;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;box-shadow:0 4px 24px rgba(37,99,235,.4);}
+.sp-btn:active{transform:scale(.97);}
 </style>
 </head>
 <body>
 
+<div id="splash">
+  <canvas id="splashCanvas"></canvas>
+  <div class="spc">
+    <div class="sp-title" id="spTitle" style="display:none">SAGE</div>
+    <div class="sp-sub" id="spSub">YOUR AI DEFI AGENT ON TON</div>
+    <div class="sp-badge" id="spBadge"><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#3b82f6"/><path d="M6 12l4 4 8-8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg><span>Powered by <b>STON.fi</b></span></div>
+    <button class="sp-btn" id="spBtn" onclick="hideSplash()">Get Started →</button>
+  </div>
+</div>
 <canvas id="cv"></canvas>
 <div class="orb orb1"></div>
 <div class="orb orb2"></div>
@@ -539,8 +559,9 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 const API='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
 const WORKER='https://twilight-tooth-940f.samsonsamuel531.workers.dev';
 const SWAP='https://sage-swap.onrender.com';
+function fmtN(n,d=2){const x=parseFloat(n);if(isNaN(x))return n;if(x>=1e9)return(x/1e9).toFixed(d)+'B';if(x>=1e6)return(x/1e6).toFixed(d)+'M';if(x>=1e3)return(x/1e3).toFixed(d)+'K';return x.toFixed(x<1?4:d);}
 
-// Token addresses on STON.fi mainnet (common tokens)
+// Token addresses on STON.fi mainnet
 const TOKEN_ADDRS={
   TON:  'ton',
   USDT: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
@@ -548,43 +569,8 @@ const TOKEN_ADDRS={
   NOT:  'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
   DOGS: 'EQCvxJy4eG8hyHBFsZ7eePxrRsUQSFE_jpptRAYBmcG_DOGS',
   USDE: 'EQCpZNOG9sJJQsxOWE6mGUkK-k09x0f8N3VbwB0H0H_USDE',
-  HMSTR:'EQB02DJ0cdUD4iQDRbBv4aYG3htePHBSKr_tY6x5kvijHMSB',
-  REDO: 'EQAvDfWFG0oYX19jwNDNBBL1rKNoroxGerfbZDSoX4nrkLSg',
 };
-
-// Token address cache from live search
-const tokenCache = {};
-
-// Resolve token symbol to address — checks hardcoded map first, then STON.fi API
-async function getAddr(symbol){
-  if(!symbol) return null;
-  const up = symbol.toUpperCase();
-
-  // Check hardcoded map
-  if(TOKEN_ADDRS[up]) return TOKEN_ADDRS[up];
-
-  // Check cache
-  if(tokenCache[up]) return tokenCache[up];
-
-  // Search via Worker (no CORS issues)
-  try{
-    const res = await fetch(`${SWAP}/search/token`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({symbol})
-    });
-    if(!res.ok) return null;
-    const data = await res.json();
-    if(data.ok && data.address){
-      tokenCache[up] = data.address;
-      console.log(`Resolved ${symbol} → ${data.address}`);
-      return data.address;
-    }
-  }catch(e){
-    console.log('Token search failed:', e);
-  }
-  return null;
-}
+function getAddr(symbol){ return TOKEN_ADDRS[symbol?.toUpperCase()] || null; }
 const HK='sage_v3_hist';
 const AK='sage_v3_alerts';
 
@@ -598,7 +584,6 @@ const ACCENTS={
   strategy: {ac:'#ff7b54',ac2:'#cc5530',icon:'🧠'},
   portfolio:{ac:'#479DFF',ac2:'#1a6fd4',icon:'📊'},
   alerts:   {ac:'#2ecc8f',ac2:'#1a9962',icon:'🔔'},
-  transfer: {ac:'#479DFF',ac2:'#1a6fd4',icon:'💸'},
 };
 
 // ── Mode chips ───────────────────────────────────────────
@@ -649,9 +634,8 @@ async function initTON(){
     tcUI.onStatusChange(w=>{
       if(w){
         walletOK=true;
-        // Convert raw 0:hex to EQ... friendly format for API calls
         const rawA=w.account.address;
-        if(rawA.startsWith('0:')||rawA.includes(':')){
+        if(rawA.includes(':')){
           try{
             const[wc,hex]=rawA.split(':');
             const bytes=new Uint8Array(36);
@@ -661,7 +645,7 @@ async function initTON(){
             bytes[34]=(crc>>8)&0xFF;bytes[35]=crc&0xFF;
             walletAddr=btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
           }catch{walletAddr=rawA;}
-        } else {walletAddr=rawA;}
+        }else{walletAddr=rawA;}
         const s=walletAddr.slice(0,4)+'…'+walletAddr.slice(-4);
         document.getElementById('wLbl').textContent=s;
         document.getElementById('wBtn').classList.add('on');
@@ -694,67 +678,24 @@ async function connectWallet(){if(!tcUI)return;walletOK?await tcUI.disconnect():
 async function fetchWalletData(address){
   if(!address) return null;
   try{
-    // TON API uses the raw address format (0:...) — convert if needed
-    const rawAddr = address.startsWith('0:') ? address : address;
-    // Use timeout to avoid hanging forever
-    // Route through Worker to avoid CORS — Worker fetches all in parallel
-    const workerRes = await fetch(`${WORKER}/wallet`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({address})
-    }).catch(()=>null);
-
-    if(workerRes?.ok){
-      const data = await workerRes.json();
-      if(data.ok) return data.wallet;
-    }
-
-    // Fallback: direct STON.fi calls (may work on some networks)
-    const fetchWithTimeout = (url, ms=6000) => {
-      const controller = new AbortController();
-      const timer = setTimeout(()=>controller.abort(), ms);
-      return fetch(url, {signal:controller.signal})
-        .catch(()=>null)
-        .finally(()=>clearTimeout(timer));
-    };
-
-    const [lpRes, farmRes, opsRes, balRes, jettonsRes] = await Promise.all([
-      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`),
-      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/farms`),
-      fetchWithTimeout(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`),
-      fetchWithTimeout(`https://tonapi.io/v2/accounts/${address}`),
-      fetchWithTimeout(`https://tonapi.io/v2/accounts/${address}/jettons?currencies=usd`),
+    const [lpRes, farmRes, opsRes, balRes] = await Promise.all([
+      fetch(`https://api.ston.fi/v1/wallets/${address}/lp_accounts`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}/farms`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}/operations?limit=20`).catch(()=>null),
+      fetch(`https://api.ston.fi/v1/wallets/${address}`).catch(()=>null),
     ]);
 
-    const [lpData, farmData, opsData, balData, jettonsData] = await Promise.all([
+    const [lpData, farmData, opsData, balData] = await Promise.all([
       lpRes?.ok  ? lpRes.json()  : null,
       farmRes?.ok ? farmRes.json() : null,
       opsRes?.ok  ? opsRes.json()  : null,
       balRes?.ok  ? balRes.json()  : null,
-      jettonsRes?.ok ? jettonsRes.json() : null,
     ]);
-    // Jetton balances from TON API — filter scams and dust
-    const jettons = (jettonsData?.balances || [])
-      .filter(j => {
-        if(j.jetton?.is_scam) return false;           // filter scam tokens
-        if(!j.jetton?.verification || j.jetton.verification === 'none') {
-          // Only include unverified if USD value > $0.01
-          const usd = parseFloat(j.price?.prices?.USD||0) * (parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9));
-          return usd > 0.01;
-        }
-        return parseFloat(j.balance||0) > 0;
-      })
-      .map(j => ({
-        symbol: j.jetton?.symbol || '?',
-        name: j.jetton?.name || '?',
-        balance: parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9),
-        usd: parseFloat(j.price?.prices?.USD||0) * (parseFloat(j.balance||0) / Math.pow(10, j.jetton?.decimals||9)),
-        address: j.jetton?.address,
-        verified: j.jetton?.verification === 'whitelist',
-      }));
-    // Native TON balance from TON API
-    const tonBalance = balData?.balance
-      ? parseFloat(balData.balance) / 1e9
+    // Native TON balance from STON.fi wallet endpoint
+    const tonBalance = balData?.wallet?.ton_balance
+      ? parseFloat(balData.wallet.ton_balance) / 1e9
+      : balData?.ton_balance
+      ? parseFloat(balData.ton_balance) / 1e9
       : 0;
     const tonPrice = market?.TON?.price || 0;
     const tonUSD = tonBalance * tonPrice;
@@ -821,22 +762,13 @@ async function fetchWalletData(address){
         time: o.created_at,
       }));
 
-    // Add jetton balances to total
-    const jettonUSD = jettons.reduce((s,j)=>s+j.usd,0);
-    totalUSD += jettonUSD;
-
-    const result = {
+    return {
       address,
       totalUSD: totalUSD.toFixed(2),
-      tonBalance: tonBalance.toFixed(4),
-      tonUSD: tonUSD.toFixed(2),
-      jettons,
       positions,
       swaps,
-      isEmpty: positions.length === 0 && jettons.length === 0 && tonBalance === 0,
+      isEmpty: positions.length === 0 && swaps.length === 0,
     };
-    console.log('SAGE wallet data:', JSON.stringify(result));
-    return result;
   }catch(e){
     console.log('Wallet fetch error:', e);
     return null;
@@ -845,19 +777,10 @@ async function fetchWalletData(address){
 
 // Cache wallet data
 let walletData = null;
-let walletLoading = false;
-
 async function refreshWalletData(){
   if(!walletAddr) return;
-  if(walletLoading) return;
-  walletLoading = true;
-  try{
-    walletData = await fetchWalletData(walletAddr);
-    console.log('SAGE wallet data:', JSON.stringify(walletData));
-  }catch(e){
-    console.log('Wallet refresh error:', e);
-  }
-  walletLoading = false;
+  walletData = await fetchWalletData(walletAddr);
+  console.log('Wallet data:', walletData);
 }
 
 
@@ -929,7 +852,6 @@ function renderTicker(){
 // ── Mode auto-detection from user message ─────────────────
 function detectMode(msg){
   const m=msg.toLowerCase();
-  if(m.includes('send')||m.includes('transfer')||m.includes('pay ')||m.includes('send ton')) return 'transfer';
   if(m.includes('swap')||m.includes('exchange')||m.includes('buy')||m.includes('sell')&&!m.includes('limit')) return 'swap';
   if(m.includes('liquid')||m.includes('pool')||m.includes('lp')||m.includes('provide')) return 'liquidity';
   if(m.includes('farm')||m.includes('yield')||m.includes('harvest')) return 'farming';
@@ -990,15 +912,8 @@ function sendTgAlert(msg){
 
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
-  transfer:`For TON transfer requests respond with:
-<TRANSFER_CARD>{"toAddress":"UQ...address","amount":"1","comment":"payment"}</TRANSFER_CARD>
-Always confirm the address with the user before generating the card.`,
-
-  swap:`For swap requests respond with a SWAP_CARD using the exact token symbols the user mentioned.
-SAGE supports ALL 30,000+ tokens on STON.fi — not just common ones. Use whatever symbol the user specifies.
-Calculate toAmount from current market price. Example:
-<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"1","toAmount":"1.39","rate":"1.39","priceImpact":"0.10","slippage":"1.0","risk":"low","riskNote":"Stable pair."}</SWAP_CARD>
-If user asks about an unknown token, still generate the card — the app will search STON.fi live for the address.`,
+  swap:`For swap requests respond with:
+<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"20","toAmount":"calculate_from_live_rate","rate":"use_live_market_rate","priceImpact":"0.12","slippage":"1.0","risk":"low","riskNote":"Stable pair, minimal risk."}</SWAP_CARD>`,
 
   liquidity:`For liquidity requests respond with:
 <LIQ_CARD>{"action":"add","pool":"TON/USDT","t0":"TON","t1":"USDT","a0":"10","a1":"58.20","share":"0.012","apr":"8.4","tvl":"$2.1M","risk":"low"}</LIQ_CARD>
@@ -1010,9 +925,8 @@ For pool browsing:
 For farm listings:
 <FARMS_CARD>{"farms":[{"name":"TON/USDT","base":"8.4","bonus":"14.0","total":"22.4","tvl":"$2.1M"},{"name":"STON/TON","base":"6.2","bonus":"18.3","total":"24.5","tvl":"$890K"},{"name":"NOT/TON","base":"9.1","bonus":"9.1","total":"18.2","tvl":"$1.2M"}]}</FARMS_CARD>`,
 
-  staking:`For staking requests respond with a STAKE_CARD. Calculate gemston = amount * (duration/12) * 2.5. Calculate unlocks date from today + duration months. Example for 500 STON 12 months:
-<STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2026"}</STAKE_CARD>
-Always fill ALL fields with real calculated values. Never leave fields as undefined.`,
+  staking:`For staking requests respond with:
+<STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>`,
 
   limitorder:`For limit order requests respond with:
 <LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","target":"0.005","current":"0.0061","amount":"500","pay":"2.5","expiry":"7 days"}</LIMIT_CARD>`,
@@ -1020,10 +934,9 @@ Always fill ALL fields with real calculated values. Never leave fields as undefi
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
 <STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
 
-  portfolio:`For portfolio queries build PF_CARD using ALL wallet data — TON balance, jettons, AND DeFi positions.
-Total = tonUSD + jetton USD values + LP values. Example structure:
-<PF_CARD>{"total":"$3.01","lp":"$0.00","farming":"$0.00","staking":"$0.00","positions":[{"type":"lp","name":"TON (Native)","value":"$2.78","apr":null},{"type":"lp","name":"NOT","value":"$0.23","apr":null}],"tip":"Your TON is idle. Swap some into a liquidity pool to start earning."}</PF_CARD>
-Always include tonBalance and jettons as positions even if no DeFi activity yet.`,
+  portfolio:`For portfolio queries, use ONLY real wallet data. Build the PF_CARD from actual positions:
+<PF_CARD>{"total":"$0.00","lp":"$0.00","farming":"$0.00","staking":"$0.00","positions":[],"tip":"No positions found. Make your first swap to get started."}</PF_CARD>
+Populate with real data if positions exist. Never invent numbers.`,
 
   alerts:`For alert requests respond with:
 <ALERT_CARD>{"alerts":[{"id":"a1","token":"TON","type":"above","target":"7.00","current":"5.82","label":"TON price alert","active":true},{"id":"a2","token":"STON","type":"below","target":"0.07","current":"0.083","label":"STON dip alert","active":true}],"new":{"token":"TON","type":"above","target":"7.00","label":"TON hits $7"}}</ALERT_CARD>`
@@ -1038,16 +951,8 @@ async function askAI(msg){
 
 Market: ${mktCtx()}
 Context mode: ${mode} (but always respond to what the user actually asks, regardless of mode)
-Wallet: ${walletAddr?'Connected — address: '+walletAddr:'NOT CONNECTED — ask user to tap Connect button'}
-Wallet address: ${walletAddr || 'none'}
-Real wallet data: ${walletData ? JSON.stringify({
-    tonBalance: walletData.tonBalance,
-    tonUSD: walletData.tonUSD,
-    jettons: walletData.jettons,
-    positions: walletData.positions,
-    isEmpty: walletData.isEmpty
-  }) : walletAddr ? 'Wallet connected. Data fetch may have failed — tell user their wallet IS connected at address '+walletAddr+' but to try refreshing or ask again' : 'No wallet connected'}
-Current TON price: $${market.TON?.price?.toFixed(4)||'unknown'}
+Wallet: ${walletOK?'Connected ('+walletAddr?.slice(0,8)+'...)':'Disconnected'}
+Real wallet data: ${walletData ? JSON.stringify(walletData) : 'No wallet connected or data not loaded yet'}
 Time: ${new Date().toISOString()}
 
 ${MODE_PROMPTS[mode]||''}
@@ -1057,13 +962,13 @@ For position queries, use ONLY real wallet data from above. If positions array i
 If positions exist, map them exactly from the real wallet data provided.
 
 Rules:
-- CRITICAL: Use the real wallet data provided above. It includes tonBalance, tonUSD, jettons, and DeFi positions.
-- ALWAYS show native TON balance and jetton balances — these are part of the portfolio.
-- Never say "I only track DeFi positions" — you track everything: TON balance, jettons, LP, farming, staking.
-- If wallet data shows tonBalance > 0, show it. If jettons exist, list them.
-- Never invent data. Never say check wallet directly — you have the data.
+- CRITICAL: ONLY use real wallet data provided above. NEVER invent positions, balances, or transactions.
+- If wallet is empty or has no positions, say so honestly. Do not make up data.
+- If wallet is not connected, tell user to connect first.
+- For portfolio/positions queries: use ONLY the real wallet data above to populate cards.
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
+- Warn about impermanent loss for LP, lock periods for staking.
 - You are SAGE. Never break character.`;
 
   const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
@@ -1096,10 +1001,10 @@ function rSwap(d){
     <div class="srow">
       <div class="stok"><div class="stok-s">${d.fromToken}</div><div class="stok-a">${d.fromAmount}</div></div>
       <div class="sarr">→</div>
-      <div class="stok"><div class="stok-s">${d.toToken}</div><div class="stok-a">≈${d.toAmount}</div></div>
+      <div class="stok"><div class="stok-s">${d.toToken}</div><div class="stok-a">≈${fmtN(d.toAmount)}</div></div>
     </div>
     <div class="drows">
-      <div class="dr"><span class="dl">Rate</span><span class="dv">1 ${d.fromToken} = ${d.rate} ${d.toToken}</span></div>
+      <div class="dr"><span class="dl">Rate</span><span class="dv">1 ${d.fromToken} = ${fmtN(d.rate)} ${d.toToken}</span></div>
       <div class="dr"><span class="dl">Price Impact</span><span class="dv ${parseFloat(d.priceImpact)>2?'y':'g'}">${d.priceImpact}%</span></div>
       <div class="dr"><span class="dl">Max Slippage</span><span class="dv">${d.slippage}%</span></div>
     </div>
@@ -1238,25 +1143,6 @@ function rStrategy(d){
 }
 
 function rPortfolio(d){
-  // Inject live wallet data if AI didn't include it
-  if(walletData && parseFloat(walletData.tonBalance||0) > 0){
-    if(!d.positions) d.positions = [];
-    const hasTon = d.positions.find(p=>p.name==='TON (Native)');
-    if(!hasTon){
-      d.positions.unshift({type:'lp',name:'TON (Native)',value:'$'+walletData.tonUSD,apr:walletData.tonBalance+' TON'});
-    }
-    // Add jettons
-    (walletData.jettons||[]).forEach(j=>{
-      const has = d.positions.find(p=>p.name===j.symbol);
-      if(!has && j.balance > 0){
-        d.positions.push({type:'lp',name:j.symbol,value:'$'+j.usd.toFixed(2),apr:j.balance.toFixed(2)+' '+j.symbol});
-      }
-    });
-    // Recalculate total
-    const tot = d.positions.reduce((s,p)=>s+parseFloat(p.value?.replace('$','')||0),0);
-    d.total = '$'+tot.toFixed(2);
-    if(d.tip && tot > 0) d.tip = null;
-  }
   const ch=parseFloat(d.changeP||0);
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">📊</span>PORTFOLIO</div>
@@ -1343,22 +1229,6 @@ function rPos(d){
   </div>`;
 }
 
-// ── Transfer card renderer ────────────────────────────────
-function rTransfer(d){
-  return`<div class="acard">
-    <div class="alabel"><span class="alabel-icon">💸</span>TRANSFER PREVIEW</div>
-    <div class="drows" style="position:relative;z-index:1">
-      <div class="dr"><span class="dl">To</span><span class="dv" style="font-size:10px;word-break:break-all">${d.toAddress?.slice(0,8)}…${d.toAddress?.slice(-6)}</span></div>
-      <div class="dr"><span class="dl">Amount</span><span class="dv g">${d.amount} TON</span></div>
-      <div class="dr"><span class="dl">USD Value</span><span class="dv">≈$${(parseFloat(d.amount||0)*(market.TON?.price||0)).toFixed(2)}</span></div>
-      ${d.comment?`<div class="dr"><span class="dl">Note</span><span class="dv">${d.comment}</span></div>`:''}
-    </div>
-    <div class="rbar med" style="position:relative;z-index:1">⚠ Verify address carefully. TON transfers are irreversible.</div>
-    <button class="cbtn" onclick="exec('transfer',${esc2(d)},this)" ${!walletOK?'disabled':''}>
-      ${walletOK?'Confirm Transfer via Wallet':'Connect Wallet First'}</button>
-  </div>`;
-}
-
 // ── Render AI response ────────────────────────────────────
 function renderAI(text){
   let html='';
@@ -1366,7 +1236,7 @@ function renderAI(text){
   if(clean)html+=`<div class="bubble">${fmt(clean)}</div>`;
 
   const cards=[
-    ['SWAP_CARD',rSwap],['LIQ_CARD',rLiq],['POOLS_CARD',rPools],['TRANSFER_CARD',rTransfer],
+    ['SWAP_CARD',rSwap],['LIQ_CARD',rLiq],['POOLS_CARD',rPools],
     ['FARM_CARD',rFarm],['FARMS_CARD',rFarms],['STAKE_CARD',rStake],
     ['LIMIT_CARD',rLimit],['STRATEGY_CARD',rStrategy],
     ['PF_CARD',rPortfolio],['ALERT_CARD',rAlerts],['POS_CARD',rPos]
@@ -1376,11 +1246,6 @@ function renderAI(text){
 }
 
 // ── Execute ───────────────────────────────────────────────
-// ── Omniston swap via browser WebSocket ──────────────────
-const PTON_V2    = 'EQBnGWMCf3-FZZq1W4IWcWiGAc3PHuZ0_H-7sad2oY00o83S';
-const TON_NATIVE = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
-
-// ── Exec handler ─────────────────────────────────────────
 async function exec(type, data, btn){
   if(!walletOK){ toast('Connect wallet first'); await tcUI?.openModal(); return; }
   if(!tcUI){ toast('Wallet not ready'); return; }
@@ -1391,27 +1256,35 @@ async function exec(type, data, btn){
   try{
     let transaction = null;
 
-    // ── Swap via Worker ───────────────────────────────────
+    // ── Swap ──────────────────────────────────────────────
     if(type === 'swap'){
-      btn.textContent = 'Getting quote…';
-      const fromAddr = await getAddr(data.fromToken) || data.fromTokenAddr || 'ton';
-      const toAddr   = await getAddr(data.toToken)   || data.toTokenAddr;
-      if(!toAddr) throw new Error(`Token not found: ${data.toToken}`);
-      const res = await fetch(`${SWAP}/build/swap`,{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({fromToken:fromAddr, toToken:toAddr, fromAmount:data.fromAmount, walletAddress:walletAddr, slippage:parseFloat(data.slippage||'1')/100})
+      btn.textContent = 'Simulating swap…';
+      const fromAddr = getAddr(data.fromToken) || data.fromTokenAddr;
+      const toAddr   = getAddr(data.toToken)   || data.toTokenAddr;
+      if(!fromAddr || !toAddr) throw new Error(`Unknown token: ${!fromAddr?data.fromToken:data.toToken}`);
+      const res = await fetch(`${SWAP}/build/swap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromToken: fromAddr,
+          toToken:   toAddr,
+          fromAmount: data.fromAmount,
+          walletAddress: walletAddr,
+          slippage: parseFloat(data.slippage || '1') / 100,
+        })
       });
       const result = await res.json();
-      if(!result.ok) throw new Error(result.error||'Swap failed');
+      if(!result.ok) throw new Error(result.error || 'Swap build failed');
+      clearTimeout(_wu);
       transaction = result.transaction;
-      toast(`⚡ Rate locked · Impact: ${result.simulation?.priceImpact||'<0.1'}%`);
+      toast(`⚡ Rate locked · Impact: ${result.simulation.priceImpact || '<0.1'}%`);
     }
 
     // ── Liquidity ─────────────────────────────────────────
     else if(type === 'liquidity'){
       btn.textContent = 'Simulating liquidity…';
-      const tokenAAddr = await getAddr(data.t0) || data.tokenAAddr;
-      const tokenBAddr = await getAddr(data.t1) || data.tokenBAddr;
+      const tokenAAddr = getAddr(data.t0) || data.tokenAAddr;
+      const tokenBAddr = getAddr(data.t1) || data.tokenBAddr;
       if(!tokenAAddr || !tokenBAddr) throw new Error('Unknown token in pair');
       const res = await fetch(`${SWAP}/build/liquidity`, {
         method: 'POST',
@@ -1443,14 +1316,20 @@ async function exec(type, data, btn){
     }
 
     // ── Staking ───────────────────────────────────────────
-    else if(type === 'staking'){
-      toast('🔒 Opening STON.fi staking…');
-      const stakeUrl = `https://app.ston.fi/staking`;
-      if(tg?.openLink) tg.openLink(stakeUrl);
-      else window.open(stakeUrl, '_blank');
-      btn.disabled = false;
-      btn.textContent = 'View on STON.fi ↗';
-      return;
+    else if(type==='staking'){
+      if(data.stakeTon){
+        btn.textContent='Staking TON…';
+        const res=await fetch(`${SWAP}/build/tonstake`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({walletAddress:walletAddr,amount:data.amount})});
+        const result=await res.json();
+        if(!result.ok)throw new Error(result.error||'TON stake failed');
+        transaction=result.transaction;
+        toast(`🔒 Staking ${data.amount} TON → tsTON`);
+      }else{
+        toast('🔒 Opening STON.fi staking…');
+        const u='https://app.ston.fi/staking';
+        if(tg?.openLink)tg.openLink(u);else window.open(u,'_blank');
+        btn.disabled=false;btn.textContent='View on STON.fi ↗';return;
+      }
     }
 
     // ── Limit Orders ──────────────────────────────────────
@@ -1462,25 +1341,6 @@ async function exec(type, data, btn){
       btn.disabled = false;
       btn.textContent = 'View on STON.fi ↗';
       return;
-    }
-
-    // ── TON Transfer ─────────────────────────────────────
-    else if(type === 'transfer'){
-      btn.textContent = 'Preparing transfer…';
-      const res = await fetch(`${WORKER}/build/transfer`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          toAddress: data.toAddress,
-          amount: data.amount,
-          comment: data.comment || '',
-          walletAddress: walletAddr,
-        })
-      });
-      const result = await res.json();
-      if(!result.ok) throw new Error(result.error || 'Transfer build failed');
-      transaction = result.transaction;
-      toast(`💸 Sending ${data.amount} TON…`);
     }
 
     else {
@@ -1498,15 +1358,16 @@ async function exec(type, data, btn){
       btn.style.background = 'linear-gradient(135deg,#2ecc8f,#1a9962)';
       toast('✅ Transaction submitted!', 4000);
       // Refresh wallet data after tx
-      setTimeout(()=>refreshWalletData(), 5000);
+      setTimeout(()=>refreshWalletData(), 3000);
+      setTimeout(()=>refreshWalletData(), 8000);
       addH('system', `${type} executed: ${JSON.stringify(data)}`);
     }
 
   } catch(e) {
     btn.disabled = false;
-    btn.textContent = e.message?.includes('User rejected')
-      ? 'Cancelled'
-      : 'Retry — ' + (e.message || 'Error');
+    const _isSl=e.message?.toLowerCase().includes('slippage')||e.message?.toLowerCase().includes('min_ask');
+    btn.textContent=e.message?.includes('User rejected')?'Cancelled':_isSl?'↑ Retry with 3% slippage':'Retry — '+(e.message||'Error');
+    if(_isSl&&type==='swap'){btn.onclick=()=>{btn.onclick=null;exec('swap',{...data,slippage:'3'},btn);};}
     toast('❌ ' + (e.message || 'Transaction failed'));
     console.error('exec error:', e);
   }
@@ -1597,11 +1458,6 @@ async function send(){
   applyAccent(mode);
   addMsg('user',`<div class="bubble">${esc(txt)}</div>`);
   addH('user',txt);showTyping();
-  // Auto-refresh wallet data if asking about balance/portfolio and data is stale
-  const needsWallet = /balance|portfolio|position|wallet|holding|token|jetton/i.test(txt);
-  if(needsWallet && walletAddr && !walletData && !walletLoading){
-    refreshWalletData(); // fire and don't await — data arrives before AI responds
-  }
 
   try{
     const resp=await askAI(txt);
@@ -1673,8 +1529,6 @@ function initParticles(){
   updateChips();
   await initTON();
   await loadMarket();
-  // If wallet already connected from previous session, load data immediately
-  if(walletAddr) await refreshWalletData();
   restoreH();
   if(!history.length)greetNoWallet();
   setInterval(loadMarket,60000);
@@ -1682,5 +1536,194 @@ function initParticles(){
   if(walletOK) setInterval(refreshWalletData, 30000);
 })();
 </script>
+
+<script>
+(function(){
+  var cv=document.getElementById('splashCanvas'),ctx=cv.getContext('2d');
+  var W,H,particles=[],rings=[],frame=0,floor=0;
+  var B={x:0,y:-70,vy:10,bounces:0,phase:'drop',r:30};
+  var M={t:0,x:0,y:0,r:30,targetY:0,fx:0,fy:0,fr:0};
+  var splashHidden=false,contentShown=false,autoTimer=null;
+
+  function resize(){
+    W=cv.width=window.innerWidth;
+    H=cv.height=window.innerHeight;
+    floor=H*0.52; M.targetY=H*0.36;
+    if(B.phase==='drop'&&B.y<0) B.x=W/2;
+  }
+
+  // Perfect regular octagon — flat top/bottom like the logo
+  function drawOct(x,y,r){
+    ctx.beginPath();
+    for(var i=0;i<8;i++){
+      var a=(i/8)*Math.PI*2 + Math.PI/8; // +PI/8 gives flat top
+      var px=x+r*Math.cos(a), py=y+r*Math.sin(a);
+      i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+  }
+
+  // Morph: t=0 → circle, t=1 → octagon
+  function drawShape(x,y,r,t,textAlpha){
+    t=Math.max(0,Math.min(1,t));
+    var et=t*t*(3-2*t); // smoothstep
+
+    ctx.save();
+    ctx.shadowBlur=t<0.5?40:20;
+    ctx.shadowColor='#2563eb';
+
+    // Gradient fill
+    var g=ctx.createRadialGradient(x-r*.2,y-r*.25,r*.05,x,y,r*1.05);
+    g.addColorStop(0,'#4f94f7');
+    g.addColorStop(0.5,'#2563eb');
+    g.addColorStop(1,'#1a4fd6');
+    ctx.fillStyle=g;
+
+    ctx.beginPath();
+    var N=256;
+    for(var i=0;i<=N;i++){
+      var frac=i/N;
+      var angle=frac*Math.PI*2;
+
+      // Circle point
+      var cx2=x+r*Math.cos(angle);
+      var cy2=y+r*Math.sin(angle);
+
+      // Octagon point — find the two nearest vertices and interpolate
+      var seg=((angle/(Math.PI*2))*8+8)%8;
+      var si=Math.floor(seg), sf=seg-si;
+      var a0=(si/8)*Math.PI*2+Math.PI/8;
+      var a1=((si+1)/8)*Math.PI*2+Math.PI/8;
+      var ox=x+r*Math.cos(a0)+(r*Math.cos(a1)-r*Math.cos(a0))*sf;
+      var oy=y+r*Math.sin(a0)+(r*Math.sin(a1)-r*Math.sin(a0))*sf;
+
+      var nx=cx2+(ox-cx2)*et;
+      var ny=cy2+(oy-cy2)*et;
+      i===0?ctx.moveTo(nx,ny):ctx.lineTo(nx,ny);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // SAGE text fades in
+    if(textAlpha>0){
+      ctx.shadowBlur=0;
+      ctx.globalAlpha=textAlpha;
+      ctx.fillStyle='#ffffff';
+      ctx.font='bold '+(r*0.78)+'px "Bebas Neue",sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.letterSpacing='3px';
+      ctx.fillText('SAGE',x,y+2);
+    }
+    ctx.restore();
+  }
+
+  // Particles
+  function Pt(x,y,a,s,sz,col,life){
+    this.x=x;this.y=y;this.vx=Math.cos(a)*s;this.vy=Math.sin(a)*s;
+    this.sz=sz;this.col=col;this.life=life;this.ml=life;
+  }
+  Pt.prototype.tick=function(){this.x+=this.vx;this.y+=this.vy;this.vy+=.1;this.vx*=.97;this.life--;return this.life>0;};
+  Pt.prototype.draw=function(){
+    var a=this.life/this.ml;
+    ctx.save();ctx.globalAlpha=a;ctx.fillStyle=this.col;
+    ctx.beginPath();ctx.arc(this.x,this.y,this.sz*a,0,Math.PI*2);ctx.fill();ctx.restore();
+  };
+
+  function burst(x,y){
+    var cols=['#3b82f6','#60a5fa','#93c5fd','#fff','#1d4ed8','#bfdbfe'];
+    for(var i=0;i<55;i++){
+      var a=Math.random()*Math.PI*2,spd=2+Math.random()*9;
+      particles.push(new Pt(x,y,a,spd,1.5+Math.random()*4,cols[i%6],28+Math.random()*32));
+    }
+    for(var i=0;i<25;i++){
+      var a=-Math.PI/2+(Math.random()-.5)*2.5,spd=5+Math.random()*12;
+      particles.push(new Pt(x,y,a,spd,1,'#fff',35+Math.random()*25));
+    }
+    rings.push({x:x,y:y,r:B.r,a:1,sp:8});
+    rings.push({x:x,y:y,r:B.r*.5,a:.7,sp:13});
+  }
+
+  function showContent(){
+    if(contentShown)return; contentShown=true;
+    var els=['spSub','spBadge','spBtn'];
+    var delays=[300,450,600];
+    els.forEach(function(id,i){
+      setTimeout(function(){
+        var el=document.getElementById(id);
+        if(el){el.style.opacity=1;el.style.transform='translateY(0)';}
+      },delays[i]);
+    });
+    autoTimer=setTimeout(hideSplash,4200);
+  }
+
+  window.hideSplash=function(){
+    if(splashHidden)return; splashHidden=true;
+    if(autoTimer)clearTimeout(autoTimer);
+    var s=document.getElementById('splash');
+    s.style.transition='opacity .7s ease';
+    s.style.opacity=0;
+    setTimeout(function(){s.style.display='none';},750);
+  };
+
+  function animate(){
+    frame++;
+    ctx.clearRect(0,0,W,H);
+
+    // DROP phase
+    if(B.phase==='drop'){
+      B.vy+=.55; B.y+=B.vy;
+      // Trail
+      ctx.save();ctx.globalAlpha=.18;ctx.fillStyle='#3b82f6';
+      ctx.beginPath();ctx.ellipse(B.x,B.y+B.r*.6,B.r*.28,B.r*1.4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+
+      if(B.y+B.r>=floor){
+        B.y=floor-B.r; B.bounces++;
+        if(B.bounces===1) B.vy=-B.vy*.52;
+        else if(B.bounces===2) B.vy=-B.vy*.36;
+        else{ B.phase='morph'; M.t=0; M.x=B.x; M.y=B.y; M.r=B.r; burst(B.x,floor); }
+      }
+      drawShape(B.x,B.y,B.r,0,0);
+    }
+
+    // MORPH phase — circle morphs into octagon + floats up
+    if(B.phase==='morph'){
+      M.t+=.012;
+      var t=Math.min(M.t,1);
+      var ease=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+      M.y=(floor-M.r)+(M.targetY-(floor-M.r))*ease;
+      var r=M.r*(1+ease*.18);
+      var textA=Math.max(0,(t-.55)*2.2);
+      drawShape(M.x,M.y,r,t,textA);
+      if(M.t>=1){ B.phase='done'; M.fx=M.x; M.fy=M.y; M.fr=r; showContent(); }
+    }
+
+    // DONE — gentle glow pulse
+    if(B.phase==='done'&&M.fx){
+      var pulse=1+Math.sin(frame*.04)*.012;
+      drawShape(M.fx,M.fy,M.fr*pulse,1,1);
+    }
+
+    // Draw particles
+    particles=particles.filter(function(p){var a=p.tick();if(a)p.draw();return a;});
+
+    // Draw rings
+    rings=rings.filter(function(rg){
+      rg.r+=rg.sp; rg.a-=.038;
+      if(rg.a<=0)return false;
+      ctx.save();ctx.strokeStyle='rgba(96,165,250,'+rg.a+')';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,Math.PI*2);ctx.stroke();ctx.restore();
+      return true;
+    });
+
+    if(!splashHidden) requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize',resize);
+  resize();
+  requestAnimationFrame(animate);
+})();
+</script>
 </body>
 </html>
+
