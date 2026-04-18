@@ -648,7 +648,20 @@ async function initTON(){
     });
     tcUI.onStatusChange(w=>{
       if(w){
-        walletOK=true;walletAddr=w.account.address;
+        walletOK=true;
+        // Convert raw 0:hex to EQ... friendly format for API calls
+        const rawA=w.account.address;
+        if(rawA.startsWith('0:')||rawA.includes(':')){
+          try{
+            const[wc,hex]=rawA.split(':');
+            const bytes=new Uint8Array(36);
+            bytes[0]=0x11;bytes[1]=parseInt(wc)&0xFF;
+            for(let i=0;i<32;i++)bytes[2+i]=parseInt(hex.slice(i*2,i*2+2),16);
+            let crc=0;for(let i=0;i<34;i++){crc^=bytes[i]<<8;for(let j=0;j<8;j++)crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF;}
+            bytes[34]=(crc>>8)&0xFF;bytes[35]=crc&0xFF;
+            walletAddr=btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+          }catch{walletAddr=rawA;}
+        } else {walletAddr=rawA;}
         const s=walletAddr.slice(0,4)+'…'+walletAddr.slice(-4);
         document.getElementById('wLbl').textContent=s;
         document.getElementById('wBtn').classList.add('on');
