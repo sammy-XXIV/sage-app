@@ -31,7 +31,7 @@ window.runTest = async () => {
     out.innerHTML += 'Building TON → NOT swap...\n';
 
     const txParams = await router.getSwapTonToJettonTxParams({
-      userWalletAddress: 'UQDnWz8mfNx3NEdBWYqLLXUQ7oPp6fAg5jvs-Yt7LHUrJURh',
+      userWalletAddress: '0:e75b3f267cdc77344741598a8b2d7510ee83e9e9f020e63becf98b7b2c752b25',
       proxyTon,
       offerAmount: BigInt('71000000'), // 0.071 TON
       askJettonAddress: 'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
@@ -66,4 +66,3 @@ window.runTest = async () => {
 </script>
 </body>
 </html>
-
