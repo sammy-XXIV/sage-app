@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head><title>SAGE Swap Test</title>
+<style>
+  body { background:#000; color:#fff; font-family:monospace; padding:20px; }
+  pre { background:#111; padding:15px; border-radius:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; }
+  button { background:#3b82f6; color:#fff; border:none; padding:12px 24px; border-radius:8px; font-size:16px; cursor:pointer; margin:10px 0; }
+  .ok { color:#2ecc71; } .err { color:#e74c3c; }
+</style>
+</head>
+<body>
+<h2>SAGE Swap SDK Test</h2>
+<p>Tests STON.fi SDK for TON → NOT swap</p>
+<button onclick="runTest()">Run Test</button>
+<pre id="out">Click Run Test...</pre>
+
+<script type="module">
+import { DEX, pTON } from 'https://esm.sh/@ston-fi/sdk@2.2.0';
+import { TonClient } from 'https://esm.sh/@ton/ton@15.1.0';
+
+window.runTest = async () => {
+  const out = document.getElementById('out');
+  out.innerHTML = 'Loading SDK...\n';
+
+  try {
+    const client = new TonClient({ endpoint: 'https://toncenter.com/api/v2/jsonRPC' });
+    const router = client.open(new DEX.v1.Router());
+    const proxyTon = new pTON.v1();
+
+    out.innerHTML += 'SDK loaded ✓\n';
+    out.innerHTML += 'Building TON → NOT swap...\n';
+
+    const txParams = await router.getSwapTonToJettonTxParams({
+      userWalletAddress: 'UQDnWz8mfNx3NEdBWYqLLXUQ7oPp6fAg5jvs-Yt7LHUrJURh',
+      proxyTon,
+      offerAmount: BigInt('71000000'), // 0.071 TON
+      askJettonAddress: 'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
+      minAskAmount: '1',
+      queryId: Date.now(),
+    });
+
+    out.innerHTML += '\n<span class="ok">✓ txParams built!</span>\n\n';
+    out.innerHTML += 'txParams.to type: ' + typeof txParams.to + '\n';
+    out.innerHTML += 'txParams.to: ' + String(txParams.to) + '\n';
+    out.innerHTML += 'txParams.value: ' + String(txParams.value) + '\n';
+    out.innerHTML += 'txParams.body type: ' + typeof txParams.body + '\n';
+
+    // Try all address formats
+    try { out.innerHTML += 'toString(): ' + txParams.to.toString() + '\n'; } catch(e) { out.innerHTML += 'toString() failed: ' + e.message + '\n'; }
+    try { out.innerHTML += 'toString bounceable: ' + txParams.to.toString({bounceable:true,urlSafe:true}) + '\n'; } catch(e) { out.innerHTML += 'toString bounceable failed: ' + e.message + '\n'; }
+    try { out.innerHTML += 'toRawString: ' + txParams.to.toRawString() + '\n'; } catch(e) { out.innerHTML += 'toRawString failed: ' + e.message + '\n'; }
+
+    // Try payload
+    try {
+      const boc = txParams.body.toBoc();
+      out.innerHTML += 'boc type: ' + boc.constructor.name + '\n';
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(boc)));
+      out.innerHTML += 'payload (first 40): ' + b64.slice(0,40) + '...\n';
+    } catch(e) { out.innerHTML += 'payload failed: ' + e.message + '\n'; }
+
+  } catch(e) {
+    out.innerHTML += '\n<span class="err">✗ Error: ' + e.message + '</span>\n';
+    out.innerHTML += e.stack;
+  }
+};
+</script>
+</body>
+</html>
+
