@@ -712,8 +712,18 @@ async function fetchWalletData(address){
         usd: parseFloat(j.price?.prices?.USD||0)*(parseFloat(j.balance||0)/Math.pow(10, j.jetton?.decimals||9)),
         address: j.jetton?.address,
       }));
+
+    const lps   = lpData?.lp_accounts || [];
+    const farms = farmData?.farms     || [];
+    const ops   = opsData?.operations || [];
+
+    let totalUSD = tonUSD;
+    const positions = [];
+
+    // Add jetton values to total
+    for(const j of jettons) totalUSD += (j.usd||0);
+
     if(tonBalance > 0){
-      totalUSD += tonUSD;
       positions.push({
         type: 'lp',
         name: 'TON (Native)',
@@ -722,14 +732,6 @@ async function fetchWalletData(address){
         apr: null,
       });
     }
-
-    const lps    = lpData?.lp_accounts  || [];
-    const farms  = farmData?.farms      || [];
-    const ops    = opsData?.operations  || [];
-
-    // Calculate total value
-    let totalUSD = 0;
-    const positions = [];
 
     // LP positions
     for(const lp of lps){
