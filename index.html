@@ -1432,7 +1432,7 @@ async function buildSwapTx(fromToken, toToken, fromAmount, walletAddress, slippa
     catch { toAddr = String(toAddr); } }
   }
   const payload = txParams.body ? txParams.body.toBoc().toString('base64') : undefined;
-  console.log('Swap tx to:', toAddr, 'amount:', txParams.value.toString());
+  toast('Address: ' + toAddr.slice(0,20) + '...');
   return {
     validUntil: Math.floor(Date.now() / 1000) + 300,
     messages: [{ address: toAddr, amount: txParams.value.toString(), ...(payload ? { payload } : {}) }]
@@ -1736,4 +1736,3 @@ function initParticles(){
 </script>
 </body>
 </html>
-
