@@ -946,8 +946,16 @@ For farm listings:
   staking:`For staking requests respond with:
 <STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>`,
 
-  limitorder:`For limit order requests respond with:
-<LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","target":"0.005","current":"0.0061","amount":"500","pay":"2.5","expiry":"7 days"}</LIMIT_CARD>`,
+  limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair — TON, USDT, NOT, STON, DOGS, any jetton.
+Fields: type=buy|sell, token=what to buy/sell, payToken=what to spend, tokenAddress=contract address of token (use known addresses or leave empty), payTokenAddress=contract address of payToken (use 'ton' for native TON), target=trigger price in USD, current=current price, amount=how much token, pay=how much payToken to spend, expiry=order duration.
+Examples:
+"Buy 100 NOT when TON hits $1.20" → buy NOT with TON when TON price drops to $1.20
+"Swap $10 USDT to TON when TON hits $1.30" → buy TON with USDT at target
+"Sell 500 NOT when NOT hits $0.001" → sell NOT for TON at target
+
+<LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","tokenAddress":"EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT","payTokenAddress":"ton","target":"1.20","current":"1.33","amount":"100","pay":"0.09","expiry":"7 days"}</LIMIT_CARD>
+<LIMIT_CARD>{"type":"buy","token":"TON","payToken":"USDT","tokenAddress":"ton","payTokenAddress":"EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs","target":"1.30","current":"1.33","amount":"7.5","pay":"10","expiry":"7 days"}</LIMIT_CARD>
+Always use real current prices from market data. Calculate pay amount correctly.`,
 
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
 <STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
@@ -1116,6 +1124,7 @@ function rStake(d){
 function rLimit(d){
   const buy=d.type==='buy';
   const pct=((parseFloat(d.current)-parseFloat(d.target))/parseFloat(d.current)*100).toFixed(1);
+  const pair = buy ? `${d.payToken} → ${d.token}` : `${d.token} → ${d.payToken}`;
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">📋</span>LIMIT ORDER</div>
     <div class="lotype">
@@ -1123,17 +1132,17 @@ function rLimit(d){
       <div class="lobtn sell ${!buy?'sel':''}">SELL</div>
     </div>
     <div class="drows">
-      <div class="dr"><span class="dl">Token</span><span class="dv ac">${d.token}</span></div>
-      <div class="dr"><span class="dl">Pay With</span><span class="dv">${d.payToken}</span></div>
-      <div class="dr"><span class="dl">Target Price</span><span class="dv ${buy?'g':'r'}">$${d.target}</span></div>
+      <div class="dr"><span class="dl">Pair</span><span class="dv ac">${pair}</span></div>
+      <div class="dr"><span class="dl">Trigger Price</span><span class="dv ${buy?'g':'r'}">$${d.target}</span></div>
       <div class="dr"><span class="dl">Current Price</span><span class="dv">$${d.current}</span></div>
       <div class="dr"><span class="dl">${buy?'Below':'Above'} market</span><span class="dv ${buy?'g':'r'}">${Math.abs(pct)}%</span></div>
-      <div class="dr"><span class="dl">Amount</span><span class="dv">${d.amount} ${d.token}</span></div>
-      <div class="dr"><span class="dl">You Pay</span><span class="dv">${d.pay} ${d.payToken}</span></div>
+      <div class="dr"><span class="dl">${buy?'You get':'You sell'}</span><span class="dv">${d.amount} ${d.token}</span></div>
+      <div class="dr"><span class="dl">${buy?'You send':'You receive'}</span><span class="dv">${d.pay} ${d.payToken}</span></div>
       <div class="dr"><span class="dl">Expires</span><span class="dv">${d.expiry}</span></div>
     </div>
+    <div class="rbar med">~ Send ${d.pay} ${d.payToken} to your agent wallet to activate this order.</div>
     <button class="cbtn ${buy?'g':'r'}" onclick="exec('limitorder',${esc2(d)},this)" ${!walletOK?'disabled':''}>
-      ${walletOK?`Place ${buy?'Buy':'Sell'} Order via Wallet`:'Connect Wallet First'}</button>
+      ${walletOK?`Fund & Place ${buy?'Buy':'Sell'} Order`:'Connect Wallet First'}</button>
   </div>`;
 }
 
@@ -1352,13 +1361,61 @@ async function exec(type, data, btn){
 
     // ── Limit Orders ──────────────────────────────────────
     else if(type === 'limitorder'){
-      toast('📋 Opening STON.fi limit orders…');
-      const loUrl = `https://app.ston.fi/limit-orders`;
-      if(tg?.openLink) tg.openLink(loUrl);
-      else window.open(loUrl, '_blank');
-      btn.disabled = false;
-      btn.textContent = 'View on STON.fi ↗';
-      return;
+      btn.textContent = 'Setting up order…';
+
+      // Get or create user's agent wallet
+      const agentRes = await fetch(`${SWAP}/agent/address`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userWallet: walletAddr })
+      });
+      const agentData = await agentRes.json();
+      if(!agentData.ok) throw new Error(agentData.error||'Could not create agent wallet');
+      const agentAddress = agentData.address;
+
+      const isBuy = data.type === 'buy';
+      // tokenIn = what user sends to fund the order
+      // tokenOut = what user receives after order fills
+      const tokenIn  = isBuy ? (data.payTokenAddress||'ton') : (data.tokenAddress||'ton');
+      const tokenOut = isBuy ? (data.tokenAddress||'ton')    : (data.payTokenAddress||'ton');
+      const fundAmount = isBuy ? data.pay : data.amount;
+      const fundSymbol = isBuy ? data.payToken : data.token;
+      const isTonFund = tokenIn === 'ton' || tokenIn === '' || !tokenIn;
+
+      // Place the order in Supabase
+      const placeRes = await fetch(`${SWAP}/limit/place`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          userWallet: walletAddr,
+          tokenIn, tokenOut,
+          amount: fundAmount,
+          targetPrice: data.target,
+          direction: data.type,
+          tokenInSymbol: fundSymbol,
+          tokenOutSymbol: isBuy ? data.token : data.payToken,
+        })
+      });
+      const placeData = await placeRes.json();
+      if(!placeData.ok) throw new Error(placeData.error||'Could not place order');
+
+      // Build fund transfer tx to agent wallet
+      if(isTonFund) {
+        transaction = {
+          validUntil: Math.floor(Date.now()/1000)+300,
+          messages:[{ address: agentAddress, amount: BigInt(Math.round(parseFloat(fundAmount)*1e9)).toString(), payload:'' }]
+        };
+      } else {
+        // Jetton transfer to agent wallet
+        const transferRes = await fetch(`${WORKER}/build/transfer`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ toAddress: agentAddress, amount: fundAmount, comment:`order:${placeData.order.id}` })
+        });
+        const transferData = await transferRes.json();
+        if(!transferData.ok) throw new Error(transferData.error||'Transfer build failed');
+        transaction = transferData.transaction;
+      }
+
+      toast(`📋 Order placed! Sending ${fundAmount} ${fundSymbol} to activate.`);
+      btn.textContent = `Send ${fundAmount} ${fundSymbol} → Agent Wallet`;
     }
 
     else {
