@@ -1276,9 +1276,39 @@ function rLimit(d){
       <div class="dr"><span class="dl">Expires</span><span class="dv">${expiry}</span></div>
     </div>
     <div class="rbar med">~ Send ${pay} ${payToken} to your agent wallet to activate.</div>
-    <button class="cbtn ${buy?'g':'r'}" onclick="exec('limitorder',${esc2({...d,token,payToken,target,current,amount,pay,expiry})},this)" ${!walletOK?'disabled':''}>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:4px;">You send (${payToken})</div>
+        <input id="lo_pay" type="number" step="any" value="${pay}" placeholder="0.00"
+          style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px;color:#fff;font-size:14px;font-family:var(--mono);"
+          oninput="loUpdate(this,'pay','${token}','${target}')">
+      </div>
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:4px;">You get (${token})</div>
+        <input id="lo_get" type="number" step="any" value="${amount}" placeholder="0.00"
+          style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px;color:#fff;font-size:14px;font-family:var(--mono);"
+          oninput="loUpdate(this,'get','${token}','${target}')">
+      </div>
+    </div>
+    <button class="cbtn ${buy?'g':'r'}" onclick="
+      const p=document.getElementById('lo_pay')?.value||'${pay}';
+      const g=document.getElementById('lo_get')?.value||'${amount}';
+      exec('limitorder',{...${esc2({...d,token,payToken,target,current,expiry})},pay:p,amount:g},this)
+    " ${!walletOK?'disabled':''}>
       ${walletOK?`Fund & Place ${buy?'Buy':'Sell'} Order`:'Connect Wallet First'}</button>
   </div>`;
+}
+
+function loUpdate(inp, field, token, target){
+  const val = parseFloat(inp.value)||0;
+  const tgt = parseFloat(target)||1;
+  if(field==='pay'){
+    const getEl = document.getElementById('lo_get');
+    if(getEl) getEl.value = (val/tgt).toFixed(4);
+  } else {
+    const payEl = document.getElementById('lo_pay');
+    if(payEl) payEl.value = (val*tgt).toFixed(4);
+  }
 }
 
 function rStrategy(d){
