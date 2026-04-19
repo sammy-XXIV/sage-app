@@ -799,10 +799,11 @@ let userOrders = [];
 async function fetchOrders(){
   if(!walletAddr) return;
   try{
-    const res = await fetch(`${SWAP}/limit/orders/${walletAddr}`);
+    const res = await fetch(`${SWAP}/limit/orders/${encodeURIComponent(walletAddr)}`);
     const data = await res.json();
-    if(data.ok) userOrders = data.orders || [];
-  }catch(e){ console.log('Orders fetch error:', e); }
+    userOrders = data.orders || [];
+    return userOrders;
+  }catch(e){ userOrders = []; }
 }
 
 function renderOrders(){
@@ -1037,11 +1038,16 @@ function mktCtx(){
 async function askAI(msg){
   // Intercept order queries — fetch real data instead of asking AI
   const ml = msg.toLowerCase();
-  if(ml.includes('my order')||ml.includes('open order')||ml.includes('my trigger')||ml.includes('my limit')||ml.includes('existing trigger')||ml.includes('show order')){
-    if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet to see orders.</div></div>'); return; }
+  if(ml.includes('my order')||ml.includes('open order')||ml.includes('my trigger')||ml.includes('my limit')||ml.includes('existing trigger')||ml.includes('show order')||ml.includes('cancel order')){
+    if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet first.</div></div>'); return; }
+    addMsg('ai','<div class="ai-content"><div class="bubble">Fetching your orders…</div></div>');
     await fetchOrders();
-    const ordersHTML = renderOrders();
-    addMsg('ai',`<div class="ai-content"><div class="bubble">${userOrders.length?`You have <b>${userOrders.filter(o=>o.status==='pending').length}</b> pending order${userOrders.filter(o=>o.status==='pending').length!==1?'s':''}.`:'No orders yet.'}</div>${ordersHTML}</div>`);
+    // Replace the loading message with real data
+    const msgs = document.querySelectorAll('.ai-content');
+    const last = msgs[msgs.length-1];
+    const pending = userOrders.filter(o=>o.status==='pending').length;
+    const summary = userOrders.length ? `You have <b>${pending}</b> pending order${pending!==1?'s':''}.` : 'No orders yet. Place one by asking to buy or sell at a target price.';
+    if(last) last.innerHTML = `<div class="bubble">${summary}</div>${renderOrders()}`;
     return;
   }
 
@@ -1089,7 +1095,6 @@ function parseCard(t,tag){
   if(!m)return null;
   try{
     const d=JSON.parse(m[1].trim());
-    if(tag==='LIMIT_CARD') toast('DEBUG: type='+d.type+' token='+d.token+' pay='+d.payToken,5000);
     return d;
   }catch(e){console.log('parseCard err',tag,e.message);return null;}
 }
