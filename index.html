@@ -984,25 +984,16 @@ For pool browsing:
 For farm listings:
 <FARMS_CARD>{"farms":[{"name":"TON/USDT","base":"8.4","bonus":"14.0","total":"22.4","tvl":"$2.1M"},{"name":"STON/TON","base":"6.2","bonus":"18.3","total":"24.5","tvl":"$890K"},{"name":"NOT/TON","base":"9.1","bonus":"9.1","total":"18.2","tvl":"$1.2M"}]}</FARMS_CARD>`,
 
-  staking:`SAGE has TWO staking options — always pick the right one:
+  staking:`When user asks to stake TON or asks about staking options, ALWAYS show a STAKE_OPTIONS_CARD comparing both options.
 
-OPTION 1 — TON Liquid Staking (TON Stakers):
-- Triggered by: "stake TON", "liquid stake", "earn on TON", "stake my TON"
-- User stakes TON → receives tsTON → ~5% APY, no lock up, stays liquid
-- Use: <STAKE_CARD>{"token":"TON","amount":"1","stakeTon":true}</STAKE_CARD>
+Each option MUST include: name, type, apy, lock, risk, receive, desc, pros, cons.
 
-OPTION 2 — STON.fi STON Token Staking:
-- Triggered by: "stake STON", "lock STON", "STON governance"
-- User locks STON → receives GEMSTON + ARKENSTON NFT → 3-24 month lock
-- Calculate gemston = amount * (duration/12) * 2.5. Calculate unlocks from today.
-- Use: <STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>
+<STAKE_OPTIONS_CARD>{"amount":"1","options":[
+{"name":"TON Stakers","type":"tonstakers","apy":"5.2","lock":"None","risk":"Low","receive":"tsTON","desc":"Liquid staking — stake TON, get tsTON instantly. Earn ~5% APY while keeping liquidity.","pros":"✓ No lock-up period\n✓ tsTON is tradeable anytime\n✓ ~5% APY auto-compounds\n✓ Used in DeFi protocols","cons":"✗ Lower APY than farming\n✗ tsTON price may deviate slightly"},
+{"name":"STON.fi Farm","type":"stonfi","apy":"18.4","lock":"Flexible","risk":"Medium","receive":"STON rewards","desc":"Add TON liquidity, get LP tokens, stake in farm. Higher APY but more complex.","pros":"✓ Much higher APY (15-25%)\n✓ Earn trading fees + rewards\n✓ Flexible lock periods","cons":"✗ Impermanent loss risk\n✗ Requires two steps (add liquidity first)\n✗ Smart contract risk"}
+]}</STAKE_OPTIONS_CARD>
 
-OPTION 3 — STON.fi LP Farm Staking:
-- Triggered by: "farm", "stake LP", "stake in pool", "earn farm rewards"
-- User stakes LP tokens in a farm → earns STON rewards
-- Redirect to STON.fi farms page
-
-Always clarify which one if user is ambiguous. Never mix them up.`,
+Replace amount with what user specified. Always include all pros/cons fields. Never leave any field undefined.`,
 
   limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair.
 REQUIRED fields — never leave any as 0 or undefined. Always calculate:
@@ -1182,71 +1173,114 @@ function rFarms(d){
 
 function rStakeOptions(d){
   const opts = d.options || [];
+  const uid = Date.now();
   return `<div class="acard">
-    <div class="alabel"><span class="alabel-icon">🔒</span>STAKING OPTIONS</div>
-    <div class="drows">
-      <div class="dr"><span class="dl">Amount</span><span class="dv">${d.amount} TON</span></div>
-    </div>
+    <div class="alabel"><span class="alabel-icon">🔒</span>STAKING OPTIONS — ${d.amount} TON</div>
     <div class="sopt-grid">
       ${opts.map((o,i)=>`
-      <div class="sopt" id="sopt_${i}" onclick="selectStakeOpt(${i},${esc2(d)},this)">
-        <div class="sopt-name">${o.name}</div>
-        <div class="sopt-apy">${o.apy}%</div>
+      <div class="sopt ${i===0?'sel':''}" onclick="selectStakeOpt(${i},'${uid}',${esc2(d)},this)">
+        <div class="sopt-name">${o.name||'Option '+(i+1)}</div>
+        <div class="sopt-apy">${o.apy||'?'}%</div>
         <div class="sopt-sub">APY</div>
         <div class="sopt-tags">
-          <span class="sopt-tag ${o.lock==='None'?'green':'yellow'}">${o.lock==='None'?'🔓 Liquid':'🔒 '+o.lock}</span>
-          <span class="sopt-tag ${o.risk==='Low'?'green':o.risk==='Medium'?'yellow':'red'}">${o.risk} risk</span>
+          <span class="sopt-tag ${(o.lock||'')===('None'||'No')?'green':'yellow'}">${(o.lock==='None'||o.lock==='No')?'🔓 Liquid':'🔒 '+(o.lock||'Locked')}</span>
+          <span class="sopt-tag ${o.risk==='Low'?'green':o.risk==='Medium'?'yellow':'red'}">${o.risk||'Medium'} risk</span>
           ${o.receive?`<span class="sopt-tag">→ ${o.receive}</span>`:''}
         </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--t2);line-height:1.5">${o.pros||''}</div>
+        ${o.cons?`<div style="margin-top:4px;font-size:10px;color:#e74c3c;line-height:1.5">${o.cons}</div>`:''}
       </div>`).join('')}
     </div>
-    <div class="rbar med" id="sopt_desc">${opts[0]?.desc||''}</div>
-    <button class="cbtn g" id="sopt_btn" onclick="execStakeOpt(${esc2(d)},this)" ${!walletOK?'disabled':''}>
-      ${walletOK?`Stake ${d.amount} TON with ${opts[0]?.name}`:'Connect Wallet First'}
+    <div class="rbar med" id="sdesc_${uid}">${opts[0]?.desc||''}</div>
+    <button class="cbtn g" id="sbtn_${uid}" onclick="execStakeOpt('${uid}',${esc2(d)},this)" ${!walletOK?'disabled':''}>
+      ${walletOK?`Stake ${d.amount} TON with ${opts[0]?.name||'TON Stakers'}`:'Connect Wallet First'}
     </button>
   </div>`;
 }
 
-let _selectedStakeOpt = 0;
-function selectStakeOpt(i, d, el){
-  _selectedStakeOpt = i;
+let _stakeSelections = {};
+function selectStakeOpt(i, uid, d, el){
+  _stakeSelections[uid] = i;
   el.closest('.sopt-grid').querySelectorAll('.sopt').forEach((s,j)=>s.classList.toggle('sel',j===i));
   const opts = d.options||[];
-  document.getElementById('sopt_desc').textContent = opts[i]?.desc||'';
-  document.getElementById('sopt_btn').textContent = `Stake ${d.amount} TON with ${opts[i]?.name}`;
+  const descEl = document.getElementById('sdesc_'+uid);
+  const btnEl = document.getElementById('sbtn_'+uid);
+  if(descEl) descEl.textContent = opts[i]?.desc||'';
+  if(btnEl) btnEl.textContent = `Stake ${d.amount} TON with ${opts[i]?.name||''}`;
 }
 
-async function execStakeOpt(d, btn){
-  const opts = d.options||[];
-  const opt = opts[_selectedStakeOpt];
+async function execStakeOpt(uid, d, btn){
+  const i = _stakeSelections[uid] ?? 0;
+  const opt = (d.options||[])[i];
   if(!opt) return;
-  if(opt.type === 'tonstakers'){
-    exec('staking', {stakeTon:true, amount:d.amount, token:'TON'}, btn);
+  if(opt.type==='tonstakers'||opt.name?.toLowerCase().includes('staker')){
+    exec('staking',{stakeTon:true,amount:d.amount,token:'TON'},btn);
   } else {
-    exec('staking', {amount:d.amount, duration:'12', gemston: Math.round(parseFloat(d.amount||0)*(12/12)*2.5).toString(), unlocks:'Apr 2026'}, btn);
+    exec('staking',{amount:d.amount,duration:'12',gemston:Math.round(parseFloat(d.amount||0)*2.5).toString(),unlocks:'Apr 2027'},btn);
   }
 }
 
 function rStake(d){
   const durs=['3','6','12','24'];
+  const isTon = d.stakeTon || d.token==='TON';
+  const amt = parseFloat(d.amount||0);
+  const tonPrice = market?.TON?.price||1.4;
+
+  if(isTon){
+    // TON Stakers card
+    const apy = parseFloat(d.apy||5.2);
+    return`<div class="acard">
+      <div class="alabel"><span class="alabel-icon">🔒</span>TON LIQUID STAKING</div>
+      <div class="drows">
+        <div class="dr"><span class="dl">You stake</span><span class="dv">${amt} TON</span></div>
+        <div class="dr"><span class="dl">You receive</span><span class="dv g">tsTON (liquid)</span></div>
+        <div class="dr"><span class="dl">APY</span><span class="dv g">~${apy}%</span></div>
+        <div class="dr"><span class="dl">Lock up</span><span class="dv g">None — stays liquid</span></div>
+        <div class="dr"><span class="dl">Protocol</span><span class="dv">TON Stakers</span></div>
+      </div>
+      ${yieldCalc(apy, amt*tonPrice, 'TON', [{label:'30d',days:30},{label:'90d',days:90},{label:'6mo',days:180},{label:'1yr',days:365}])}
+      <div class="rbar low">✓ Liquid staking — receive tsTON instantly. No lock-up.</div>
+      <button class="cbtn g" onclick="exec('staking',${esc2(d)},this)" ${!walletOK?'disabled':''}>
+        ${walletOK?'Stake TON via Wallet':'Connect Wallet First'}</button>
+    </div>`;
+  }
+
+  // STON staking card
+  const stonPrice = market?.STON?.price||0.33;
+  const gemston = parseFloat(d.gemston||0) || Math.round(amt*(parseFloat(d.duration||12)/12)*2.5);
+  const unlocks = d.unlocks || (() => {
+    const date = new Date();
+    date.setMonth(date.getMonth()+parseInt(d.duration||12));
+    return date.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+  })();
+
   return`<div class="acard">
-    <div class="alabel"><span class="alabel-icon">🔒</span>STAKING PREVIEW</div>
+    <div class="alabel"><span class="alabel-icon">🔒</span>STON STAKING</div>
     <div class="drows">
-      <div class="dr"><span class="dl">STON Amount</span><span class="dv">${d.amount} STON</span></div>
-      <div class="dr"><span class="dl">GEMSTON Reward</span><span class="dv g">${d.gemston} GEMSTON</span></div>
-      <div class="dr"><span class="dl">ARKENSTON NFT</span><span class="dv p">✓ Governance</span></div>
-      <div class="dr"><span class="dl">Unlocks</span><span class="dv">${d.unlocks}</span></div>
+      <div class="dr"><span class="dl">STON Amount</span><span class="dv">${amt||'?'} STON</span></div>
+      <div class="dr"><span class="dl">GEMSTON Reward</span><span class="dv g">${gemston} GEMSTON</span></div>
+      <div class="dr"><span class="dl">ARKENSTON NFT</span><span class="dv p">✓ Governance rights</span></div>
+      <div class="dr"><span class="dl">Unlocks</span><span class="dv">${unlocks}</span></div>
     </div>
     <div class="sdurs">${durs.map(dur=>`
-      <div class="sdur ${d.duration===dur?'sel':''}" onclick="this.closest('.sdurs').querySelectorAll('.sdur').forEach(x=>x.classList.remove('sel'));this.classList.add('sel')">
+      <div class="sdur ${(d.duration||'12')===dur?'sel':''}" onclick="this.closest('.sdurs').querySelectorAll('.sdur').forEach(x=>x.classList.remove('sel'));this.classList.add('sel');this.closest('.acard').querySelector('.sdur-unlock').textContent=calcUnlock(${dur});">
         <div class="sdur-d">${dur}mo</div>
-        <div class="sdur-g">~<b>${Math.round(parseInt(d.amount)*(dur/12)*2.5)}</b></div>
+        <div class="sdur-g">~<b>${Math.round(amt*(parseInt(dur)/12)*2.5)||'?'}</b></div>
+        <div style="font-size:8px;color:var(--t2)">GEMSTON</div>
       </div>`).join('')}
     </div>
+    <div class="dr" style="margin-top:8px"><span class="dl">Unlocks</span><span class="dv sdur-unlock">${unlocks}</span></div>
+    ${yieldCalc(20, amt*stonPrice, 'STON', [{label:'3mo',days:90},{label:'6mo',days:180},{label:'12mo',days:365},{label:'24mo',days:730}])}
     <div class="rbar med">~ STON locked until unlock date. Cannot withdraw early.</div>
-    <button class="cbtn g" onclick="exec('staking',${esc2(d)},this)" ${!walletOK?'disabled':''}>
+    <button class="cbtn g" onclick="exec('staking',${esc2({...d,gemston:gemston.toString(),unlocks})},this)" ${!walletOK?'disabled':''}>
       ${walletOK?'Stake STON via Wallet':'Connect Wallet First'}</button>
   </div>`;
+}
+
+function calcUnlock(months){
+  const d=new Date();
+  d.setMonth(d.getMonth()+parseInt(months));
+  return d.toLocaleDateString('en-US',{month:'short',year:'numeric'});
 }
 
 function rLimit(d){
