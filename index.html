@@ -971,8 +971,9 @@ function sendTgAlert(msg){
 
 // ── AI prompts ────────────────────────────────────────────
 const MODE_PROMPTS={
-  swap:`For swap requests respond with:
-<SWAP_CARD>{"fromToken":"TON","toToken":"USDT","fromAmount":"20","toAmount":"calculate_from_live_rate","rate":"use_live_market_rate","priceImpact":"0.12","slippage":"1.0","risk":"low","riskNote":"Stable pair, minimal risk."}</SWAP_CARD>`,
+  swap:`For swap requests respond with a SWAP_CARD. NEVER calculate toAmount yourself — the simulation fetches the exact rate. Just use "~" for toAmount and rate.
+CRITICAL: When discussing swap amounts in text, use ONLY these live prices: ${Object.entries(market).map(([k,v])=>`${k}=$${v.price?.toFixed(6)||'?'}`).join(', ')}
+<SWAP_CARD>{"fromToken":"TON","toToken":"NOT","fromAmount":"0.1","toAmount":"~","rate":"~","priceImpact":"~","slippage":"1.0","risk":"low","riskNote":"Standard swap."}</SWAP_CARD>`,
 
   liquidity:`For liquidity requests respond with:
 <LIQ_CARD>{"action":"add","pool":"TON/USDT","t0":"TON","t1":"USDT","a0":"10","a1":"58.20","share":"0.012","apr":"8.4","tvl":"$2.1M","risk":"low"}</LIQ_CARD>
