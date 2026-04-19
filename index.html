@@ -703,8 +703,7 @@ async function fetchWalletData(address){
       .filter(j => {
         if(j.jetton?.is_scam) return false;
         const bal = parseFloat(j.balance||0)/Math.pow(10, j.jetton?.decimals||9);
-        const usd = parseFloat(j.price?.prices?.USD||0)*bal;
-        return j.jetton?.verification && j.jetton.verification!=='none' ? bal>0 : usd>0.01;
+        return bal > 0; // show anything with a balance, no verification filter
       })
       .map(j => ({
         symbol: j.jetton?.symbol||'?',
