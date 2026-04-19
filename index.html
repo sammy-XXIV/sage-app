@@ -1068,7 +1068,7 @@ Rules:
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
 - SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to create a new buy/sell at a target price, ALWAYS respond with a LIMIT_CARD.
-- When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data. — when user asks to buy/sell at a target price, ALWAYS respond with a LIMIT_CARD. SAGE has an agentic wallet system that executes automatically when price hits. Never say limit orders are not supported or require manual execution.
+- When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data.
 - You are SAGE. Never break character.`;
 
   const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
@@ -1087,7 +1087,11 @@ Rules:
 function parseCard(t,tag){
   const m=t.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   if(!m)return null;
-  try{return JSON.parse(m[1].trim())}catch{return null}
+  try{
+    const d=JSON.parse(m[1].trim());
+    if(tag==='LIMIT_CARD') toast('DEBUG: type='+d.type+' token='+d.token+' pay='+d.payToken,5000);
+    return d;
+  }catch(e){console.log('parseCard err',tag,e.message);return null;}
 }
 function strip(t){
   return t.replace(/<(SWAP|LIQ|POOLS|FARM|FARMS|STAKE|STAKE_OPTIONS|LIMIT|STRATEGY|PF|ALERT|POS)_CARD>[\s\S]*?<\/\1_CARD>/g,'').trim();
