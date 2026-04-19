@@ -1486,9 +1486,11 @@ async function exec(type, data, btn){
       const _fromSym = (data.fromToken||'').toUpperCase();
       const _toSym = (data.toToken||'').toUpperCase();
       const _isStable = ['USDT','USDC','USDE','DAI'].some(s=>_fromSym.includes(s)||_toSym.includes(s));
-      const _isMajor = ['TON','STON'].some(s=>_fromSym===s||_toSym===s);
+      const _isMajor = (_fromSym==='TON'||_toSym==='TON')&&!['NOT','DOGS','STON'].includes(_fromSym)&&!['NOT','DOGS','STON'].includes(_toSym);
       const _autoSlip = _isStable ? 0.005 : _isMajor ? 0.01 : 0.03;
-      const _slippage = parseFloat(data.slippage||'0') > 0 ? parseFloat(data.slippage)/100 : _autoSlip;
+      // Only use user-specified slippage if they explicitly set it (e.g. "with 5% slippage")
+      const _userSlip = data.userSlippage ? parseFloat(data.userSlippage)/100 : null;
+      const _slippage = _userSlip || _autoSlip;
       const res = await fetch(`${SWAP}/build/swap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
