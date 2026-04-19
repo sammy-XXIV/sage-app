@@ -1250,9 +1250,16 @@ function rStake(d){
 }
 
 function rLimit(d){
-  const buy=d.type==='buy';
-  const pct=((parseFloat(d.current)-parseFloat(d.target))/parseFloat(d.current)*100).toFixed(1);
-  const pair = buy ? `${d.payToken} → ${d.token}` : `${d.token} → ${d.payToken}`;
+  const buy=(d.type||'buy')==='buy';
+  const token = d.token||d.toToken||d.askToken||'TON';
+  const payToken = d.payToken||d.fromToken||d.offerToken||'USDT';
+  const target = d.target||d.targetPrice||d.trigger_price||'0';
+  const current = d.current||d.currentPrice||d.current_price||'0';
+  const amount = d.amount||d.qty||'0';
+  const pay = d.pay||d.payAmount||d.offer_amount||'0';
+  const expiry = d.expiry||'7 days';
+  const pct = parseFloat(current)>0 ? ((parseFloat(current)-parseFloat(target))/parseFloat(current)*100).toFixed(1) : '0';
+  const pair = buy ? `${payToken} → ${token}` : `${token} → ${payToken}`;
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">📋</span>LIMIT ORDER</div>
     <div class="lotype">
@@ -1261,15 +1268,15 @@ function rLimit(d){
     </div>
     <div class="drows">
       <div class="dr"><span class="dl">Pair</span><span class="dv ac">${pair}</span></div>
-      <div class="dr"><span class="dl">Trigger Price</span><span class="dv ${buy?'g':'r'}">$${d.target}</span></div>
-      <div class="dr"><span class="dl">Current Price</span><span class="dv">$${d.current}</span></div>
+      <div class="dr"><span class="dl">Trigger Price</span><span class="dv ${buy?'g':'r'}">$${target}</span></div>
+      <div class="dr"><span class="dl">Current Price</span><span class="dv">$${current}</span></div>
       <div class="dr"><span class="dl">${buy?'Below':'Above'} market</span><span class="dv ${buy?'g':'r'}">${Math.abs(pct)}%</span></div>
-      <div class="dr"><span class="dl">${buy?'You get':'You sell'}</span><span class="dv">${d.amount} ${d.token}</span></div>
-      <div class="dr"><span class="dl">${buy?'You send':'You receive'}</span><span class="dv">${d.pay} ${d.payToken}</span></div>
-      <div class="dr"><span class="dl">Expires</span><span class="dv">${d.expiry}</span></div>
+      <div class="dr"><span class="dl">${buy?'You get':'You sell'}</span><span class="dv">${amount} ${token}</span></div>
+      <div class="dr"><span class="dl">${buy?'You send':'You receive'}</span><span class="dv">${pay} ${payToken}</span></div>
+      <div class="dr"><span class="dl">Expires</span><span class="dv">${expiry}</span></div>
     </div>
-    <div class="rbar med">~ Send ${d.pay} ${d.payToken} to your agent wallet to activate this order.</div>
-    <button class="cbtn ${buy?'g':'r'}" onclick="exec('limitorder',${esc2(d)},this)" ${!walletOK?'disabled':''}>
+    <div class="rbar med">~ Send ${pay} ${payToken} to your agent wallet to activate.</div>
+    <button class="cbtn ${buy?'g':'r'}" onclick="exec('limitorder',${esc2({...d,token,payToken,target,current,amount,pay,expiry})},this)" ${!walletOK?'disabled':''}>
       ${walletOK?`Fund & Place ${buy?'Buy':'Sell'} Order`:'Connect Wallet First'}</button>
   </div>`;
 }
@@ -1530,7 +1537,17 @@ async function exec(type, data, btn){
     else if(type === 'limitorder'){
       btn.textContent = 'Setting up order…';
 
-      // Get or create user's agent wallet
+      const isBuy = (data.type||'buy') === 'buy';
+      const token = data.token||data.toToken||'TON';
+      const payToken = data.payToken||data.fromToken||'USDT';
+      const target = data.target||data.targetPrice||'0';
+      const amount = data.amount||'0';
+      const pay = data.pay||data.payAmount||'0';
+      const tokenAddress = data.tokenAddress||data.toTokenAddr||(token==='TON'?'ton':'');
+      const payTokenAddress = data.payTokenAddress||data.fromTokenAddr||(payToken==='TON'?'ton':'');
+      const isTonFund = payToken==='TON'||payTokenAddress==='ton'||!payTokenAddress;
+
+      // Get agent wallet
       const agentRes = await fetch(`${SWAP}/agent/address`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ userWallet: walletAddr })
@@ -1539,39 +1556,34 @@ async function exec(type, data, btn){
       if(!agentData.ok) throw new Error(agentData.error||'Could not create agent wallet');
       const agentAddress = agentData.address;
 
-      const isBuy = data.type === 'buy';
-      // tokenIn = what user sends to fund the order
-      // tokenOut = what user receives after order fills
-      const tokenIn  = isBuy ? (data.payTokenAddress||'ton') : (data.tokenAddress||'ton');
-      const tokenOut = isBuy ? (data.tokenAddress||'ton')    : (data.payTokenAddress||'ton');
-      const fundAmount = isBuy ? data.pay : data.amount;
-      const fundSymbol = isBuy ? data.payToken : data.token;
-      const isTonFund = tokenIn === 'ton' || tokenIn === '' || !tokenIn;
+      const tokenIn  = isBuy ? (payTokenAddress||'ton') : (tokenAddress||'ton');
+      const tokenOut = isBuy ? (tokenAddress||'ton')    : (payTokenAddress||'ton');
+      const fundAmount = isBuy ? pay : amount;
+      const fundSymbol = isBuy ? payToken : token;
 
-      // Place the order in Supabase
+      // Place order in Supabase
       const placeRes = await fetch(`${SWAP}/limit/place`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           userWallet: walletAddr,
           tokenIn, tokenOut,
           amount: fundAmount,
-          targetPrice: data.target,
-          direction: data.type,
+          targetPrice: target,
+          direction: data.type||'buy',
           tokenInSymbol: fundSymbol,
-          tokenOutSymbol: isBuy ? data.token : data.payToken,
+          tokenOutSymbol: isBuy ? token : payToken,
         })
       });
       const placeData = await placeRes.json();
       if(!placeData.ok) throw new Error(placeData.error||'Could not place order');
 
-      // Build fund transfer tx to agent wallet
-      if(isTonFund) {
+      // Build fund transfer to agent wallet
+      if(isTonFund){
         transaction = {
           validUntil: Math.floor(Date.now()/1000)+300,
           messages:[{ address: agentAddress, amount: BigInt(Math.round(parseFloat(fundAmount)*1e9)).toString(), payload:'' }]
         };
       } else {
-        // Jetton transfer to agent wallet
         const transferRes = await fetch(`${WORKER}/build/transfer`, {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ toAddress: agentAddress, amount: fundAmount, comment:`order:${placeData.order.id}` })
@@ -1581,7 +1593,7 @@ async function exec(type, data, btn){
         transaction = transferData.transaction;
       }
 
-      toast(`📋 Order placed! Sending ${fundAmount} ${fundSymbol} to activate.`);
+      toast(`📋 Order placed! Send ${fundAmount} ${fundSymbol} to activate.`);
       btn.textContent = `Send ${fundAmount} ${fundSymbol} → Agent Wallet`;
     }
 
