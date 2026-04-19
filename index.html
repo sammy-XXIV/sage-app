@@ -1039,16 +1039,14 @@ async function askAI(msg){
   // Intercept order queries — fetch real data instead of asking AI
   const ml = msg.toLowerCase();
   if(ml.includes('my order')||ml.includes('open order')||ml.includes('my trigger')||ml.includes('my limit')||ml.includes('existing trigger')||ml.includes('show order')||ml.includes('cancel order')){
-    if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet first.</div></div>'); return; }
-    addMsg('ai','<div class="ai-content"><div class="bubble">Fetching your orders…</div></div>');
+    if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet first.</div></div>'); return ''; }
+    addMsg('ai','<div class="ai-content" id="ordersMsg"><div class="bubble">Fetching your orders…</div></div>');
     await fetchOrders();
-    // Replace the loading message with real data
-    const msgs = document.querySelectorAll('.ai-content');
-    const last = msgs[msgs.length-1];
     const pending = userOrders.filter(o=>o.status==='pending').length;
-    const summary = userOrders.length ? `You have <b>${pending}</b> pending order${pending!==1?'s':''}.` : 'No orders yet. Place one by asking to buy or sell at a target price.';
-    if(last) last.innerHTML = `<div class="bubble">${summary}</div>${renderOrders()}`;
-    return;
+    const summary = userOrders.length ? `You have <b>${pending}</b> pending order${pending!==1?'s':''}.` : 'No orders yet. Place one by telling me to buy or sell at a target price.';
+    const el = document.getElementById('ordersMsg');
+    if(el) el.innerHTML = `<div class="bubble">${summary}</div>${renderOrders()}`;
+    return '';
   }
 
   const sys=`You are SAGE, an elite AI DeFi agent for STON.fi on TON blockchain. Sharp, direct, professional — like a Bloomberg terminal that thinks.
