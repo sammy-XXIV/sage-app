@@ -1005,19 +1005,19 @@ OPTION 3 — STON.fi LP Farm Staking:
 Always clarify which one if user is ambiguous. Never mix them up.`,
 
   limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair.
-REQUIRED fields — never leave any undefined:
+REQUIRED fields — never leave any as 0 or undefined. Always calculate:
 - type: "buy" or "sell"
-- token: the token being bought/sold (e.g. "TON", "NOT", "USDT")
-- payToken: the token being spent (e.g. "USDT", "TON")
-- tokenAddress: contract address of token. Use "ton" for native TON. Known: NOT=EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT, USDT=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs, STON=EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO
-- payTokenAddress: contract address of payToken. Use "ton" for native TON.
-- target: trigger price in USD as string (e.g. "1.20")
-- current: current market price in USD as string (e.g. "1.29")
-- amount: quantity of token to buy/sell as string (e.g. "0.166")
-- pay: quantity of payToken to spend as string (e.g. "0.20")
+- token: token being bought/sold (e.g. "TON")
+- payToken: token being spent (e.g. "USDT")
+- tokenAddress: use "ton" for TON, known addresses for others. NOT=EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT, USDT=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs
+- payTokenAddress: use "ton" for TON
+- target: trigger price in USD (e.g. "1.20") — MUST be non-zero
+- current: current market price from live data (e.g. "1.29") — MUST be non-zero
+- amount: quantity of token received. Calculate: pay/target for buys (e.g. 0.20/1.20 = "0.166")
+- pay: quantity of payToken spent (e.g. "0.20") — MUST match what user said, NEVER 0
 - expiry: "7 days"
 
-Example — "buy $0.20 worth of TON with USDT when TON hits $1.20":
+Example — "buy $0.20 worth of TON with USDT when TON hits $1.20" (TON currently $1.29):
 <LIMIT_CARD>{"type":"buy","token":"TON","payToken":"USDT","tokenAddress":"ton","payTokenAddress":"EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs","target":"1.20","current":"1.29","amount":"0.166","pay":"0.20","expiry":"7 days"}</LIMIT_CARD>`,
 
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
@@ -1547,6 +1547,10 @@ async function exec(type, data, btn){
       const payTokenAddress = data.payTokenAddress||data.fromTokenAddr||(payToken==='TON'?'ton':'');
       const isTonFund = payToken==='TON'||payTokenAddress==='ton'||!payTokenAddress;
 
+      // Validate amounts
+      if(!parseFloat(pay)||parseFloat(pay)<=0) throw new Error('Invalid pay amount — please specify how much to spend');
+      if(!parseFloat(amount)||parseFloat(amount)<=0) throw new Error('Invalid receive amount');
+
       // Get agent wallet
       const agentRes = await fetch(`${SWAP}/agent/address`, {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -1581,7 +1585,7 @@ async function exec(type, data, btn){
       if(isTonFund){
         transaction = {
           validUntil: Math.floor(Date.now()/1000)+300,
-          messages:[{ address: agentAddress, amount: BigInt(Math.round(parseFloat(fundAmount)*1e9)).toString(), payload:'' }]
+          messages:[{ address: agentAddress, amount: BigInt(Math.round(parseFloat(fundAmount)*1e9)).toString() }]
         };
       } else {
         const transferRes = await fetch(`${WORKER}/build/transfer`, {
