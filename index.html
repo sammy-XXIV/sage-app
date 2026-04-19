@@ -1279,6 +1279,7 @@ async function exec(type, data, btn){
 
   btn.disabled = true;
   btn.textContent = 'Getting best rate…';
+  let _wu = null;
 
   try{
     let transaction = null;
@@ -1286,6 +1287,7 @@ async function exec(type, data, btn){
     // ── Swap ──────────────────────────────────────────────
     if(type === 'swap'){
       btn.textContent = 'Simulating swap…';
+      _wu = setTimeout(()=>toast('⏳ Server warming up (~15s)…'), 4000);
       const fromAddr = getAddr(data.fromToken) || data.fromTokenAddr;
       const toAddr   = getAddr(data.toToken)   || data.toTokenAddr;
       if(!fromAddr || !toAddr) throw new Error(`Unknown token: ${!fromAddr?data.fromToken:data.toToken}`);
@@ -1439,6 +1441,7 @@ async function exec(type, data, btn){
     }
 
   } catch(e) {
+    if(typeof _wu !== 'undefined') clearTimeout(_wu);
     btn.disabled = false;
     const _isSl=e.message?.toLowerCase().includes('slippage')||e.message?.toLowerCase().includes('min_ask');
     btn.textContent=e.message?.includes('User rejected')?'Cancelled':_isSl?'↑ Retry with 3% slippage':'Retry — '+(e.message||'Error');
