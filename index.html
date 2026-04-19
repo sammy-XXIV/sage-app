@@ -989,7 +989,7 @@ For farm listings:
 
 Each option MUST include: name, type, apy, lock, risk, receive, desc, pros, cons.
 
-<STAKE_OPTIONS_CARD>{"amount":"1","options":[
+<STAKE_OPTIONS_CARD>{"amount":"1","minAmount":"1","options":[
 {"name":"TON Stakers","type":"tonstakers","apy":"5.2","lock":"None","risk":"Low","receive":"tsTON","desc":"Liquid staking — stake TON, get tsTON instantly. Earn ~5% APY while keeping liquidity.","pros":"✓ No lock-up period\n✓ tsTON is tradeable anytime\n✓ ~5% APY auto-compounds\n✓ Used in DeFi protocols","cons":"✗ Lower APY than farming\n✗ tsTON price may deviate slightly"},
 {"name":"STON.fi Farm","type":"stonfi","apy":"18.4","lock":"Flexible","risk":"Medium","receive":"STON rewards","desc":"Add TON liquidity, get LP tokens, stake in farm. Higher APY but more complex.","pros":"✓ Much higher APY (15-25%)\n✓ Earn trading fees + rewards\n✓ Flexible lock periods","cons":"✗ Impermanent loss risk\n✗ Requires two steps (add liquidity first)\n✗ Smart contract risk"}
 ]}</STAKE_OPTIONS_CARD>
@@ -1063,6 +1063,7 @@ Rules:
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
+- TON Stakers minimum stake is 1 TON. NEVER show a stake amount below 1 TON for TON Stakers. If user says less than 1 TON, set amount to 1 and warn them.
 - SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to create a new buy/sell at a target price, ALWAYS respond with a LIMIT_CARD.
 - When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data.
 - You are SAGE. Never break character.`;
@@ -1224,7 +1225,7 @@ async function execStakeOpt(uid, d, btn){
 function rStake(d){
   const durs=['3','6','12','24'];
   const isTon = d.stakeTon || d.token==='TON';
-  const amt = parseFloat(d.amount||0);
+  const amt = Math.max(parseFloat(d.amount||1), 1); // min 1 TON for TON Stakers
   const tonPrice = market?.TON?.price||1.4;
 
   if(isTon){
