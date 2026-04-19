@@ -1482,6 +1482,13 @@ async function exec(type, data, btn){
       const fromAddr = getAddr(data.fromToken) || data.fromTokenAddr;
       const toAddr   = getAddr(data.toToken)   || data.toTokenAddr;
       if(!fromAddr || !toAddr) throw new Error(`Unknown token: ${!fromAddr?data.fromToken:data.toToken}`);
+      // Auto slippage: stable pairs=0.5%, major=1%, small caps=3%
+      const _fromSym = (data.fromToken||'').toUpperCase();
+      const _toSym = (data.toToken||'').toUpperCase();
+      const _isStable = ['USDT','USDC','USDE','DAI'].some(s=>_fromSym.includes(s)||_toSym.includes(s));
+      const _isMajor = ['TON','STON'].some(s=>_fromSym===s||_toSym===s);
+      const _autoSlip = _isStable ? 0.005 : _isMajor ? 0.01 : 0.03;
+      const _slippage = parseFloat(data.slippage||'0') > 0 ? parseFloat(data.slippage)/100 : _autoSlip;
       const res = await fetch(`${SWAP}/build/swap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1490,7 +1497,7 @@ async function exec(type, data, btn){
           toToken:   toAddr,
           fromAmount: data.fromAmount,
           walletAddress: walletAddr,
-          slippage: parseFloat(data.slippage || '1') / 100,
+          slippage: _slippage,
         })
       });
       const result = await res.json();
