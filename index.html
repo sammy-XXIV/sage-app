@@ -663,7 +663,7 @@ async function initTON(){
             else if(m.role==='assistant')addMsg('ai',`<div class="ai-content">${renderAI(m.content)}</div>`,t);
           });
         }
-        refreshWalletData().then(()=>autoLoadPortfolio());
+        refreshWalletData().then(()=>autoLoadPortfolio()); fetchOrders();
       }else{
         walletOK=false;walletAddr=null;
         document.getElementById('wLbl').textContent='Connect';
@@ -794,6 +794,47 @@ async function fetchWalletData(address){
 
 // Cache wallet data
 let walletData = null;
+// ── Fetch limit orders ───────────────────────────────────
+let userOrders = [];
+async function fetchOrders(){
+  if(!walletAddr) return;
+  try{
+    const res = await fetch(`${SWAP}/limit/orders/${walletAddr}`);
+    const data = await res.json();
+    if(data.ok) userOrders = data.orders || [];
+  }catch(e){ console.log('Orders fetch error:', e); }
+}
+
+function renderOrders(){
+  if(!userOrders.length) return '<div class="acard"><div class="alabel"><span class="alabel-icon">📋</span>MY ORDERS</div><div style="text-align:center;padding:20px;color:var(--t2);font-size:13px;">No active orders</div></div>';
+  const statusColor = {pending:'#f0b832',executing:'#3b82f6',filled:'#2ecc8f',cancelled:'rgba(255,255,255,0.3)',failed:'#e74c3c'};
+  return `<div class="acard">
+    <div class="alabel"><span class="alabel-icon">📋</span>MY LIMIT ORDERS</div>
+    ${userOrders.map(o=>`
+    <div class="dr" style="flex-direction:column;align-items:flex-start;gap:4px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span style="font-size:12px;font-weight:700;color:var(--t2)">${(o.token_in_symbol||o.token_in||'?').toUpperCase()} → ${(o.token_out_symbol||o.token_out||'?').toUpperCase()}</span>
+        <span style="font-size:11px;font-weight:700;color:${statusColor[o.status]||'#fff'}">${o.status?.toUpperCase()}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;width:100%;font-size:11px;color:var(--t2)">
+        <span>Target: <b style="color:#fff">$${o.target_price}</b></span>
+        <span>Amount: <b style="color:#fff">${o.amount}</b></span>
+      </div>
+      ${o.status==='pending'?`<button onclick="cancelOrder('${o.id}',this)" style="margin-top:6px;padding:4px 12px;border-radius:6px;border:1px solid rgba(231,76,60,0.4);background:rgba(231,76,60,0.1);color:#e74c3c;font-size:11px;cursor:pointer;">Cancel</button>`:''}
+    </div>`).join('')}
+  </div>`;
+}
+
+async function cancelOrder(id, btn){
+  btn.textContent = 'Cancelling…';
+  try{
+    const res = await fetch(`${SWAP}/limit/cancel/${id}`, {method:'POST'});
+    const data = await res.json();
+    if(data.ok){ toast('✅ Order cancelled'); await fetchOrders(); }
+    else throw new Error(data.error);
+  }catch(e){ btn.textContent = 'Error'; toast('❌ '+e.message); }
+}
+
 async function refreshWalletData(){
   if(!walletAddr) return;
   walletData = await fetchWalletData(walletAddr);
@@ -994,6 +1035,16 @@ function mktCtx(){
 }
 
 async function askAI(msg){
+  // Intercept order queries — fetch real data instead of asking AI
+  const ml = msg.toLowerCase();
+  if(ml.includes('my order')||ml.includes('open order')||ml.includes('my trigger')||ml.includes('my limit')||ml.includes('existing trigger')||ml.includes('show order')){
+    if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet to see orders.</div></div>'); return; }
+    await fetchOrders();
+    const ordersHTML = renderOrders();
+    addMsg('ai',`<div class="ai-content"><div class="bubble">${userOrders.length?`You have <b>${userOrders.filter(o=>o.status==='pending').length}</b> pending order${userOrders.filter(o=>o.status==='pending').length!==1?'s':''}.`:'No orders yet.'}</div>${ordersHTML}</div>`);
+    return;
+  }
+
   const sys=`You are SAGE, an elite AI DeFi agent for STON.fi on TON blockchain. Sharp, direct, professional — like a Bloomberg terminal that thinks.
 
 Market: ${mktCtx()}
@@ -1016,7 +1067,8 @@ Rules:
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
-- SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to buy/sell at a target price, ALWAYS respond with a LIMIT_CARD. SAGE has an agentic wallet system that executes automatically when price hits. Never say limit orders are not supported or require manual execution.
+- SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to create a new buy/sell at a target price, ALWAYS respond with a LIMIT_CARD.
+- When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data. — when user asks to buy/sell at a target price, ALWAYS respond with a LIMIT_CARD. SAGE has an agentic wallet system that executes automatically when price hits. Never say limit orders are not supported or require manual execution.
 - You are SAGE. Never break character.`;
 
   const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
