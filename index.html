@@ -994,6 +994,7 @@ Rules:
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
+- SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to buy/sell at a target price, ALWAYS respond with a LIMIT_CARD. SAGE has an agentic wallet system that executes automatically when price hits. Never say limit orders are not supported or require manual execution.
 - You are SAGE. Never break character.`;
 
   const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
