@@ -1251,13 +1251,13 @@ function rStake(d){
 
 function rLimit(d){
   const buy=(d.type||'buy')==='buy';
-  const token = d.token||d.toToken||d.askToken||'TON';
-  const payToken = d.payToken||d.fromToken||d.offerToken||'USDT';
-  const target = d.target||d.targetPrice||d.trigger_price||'0';
-  const current = d.current||d.currentPrice||d.current_price||'0';
-  const amount = d.amount||d.qty||'0';
-  const pay = d.pay||d.payAmount||d.offer_amount||'0';
-  const expiry = d.expiry||'7 days';
+  const token = d.token||d.toToken||d.askToken||d.ask||'TON';
+  const payToken = d.payToken||d.fromToken||d.offerToken||d.offer||'USDT';
+  const target = d.target||d.targetPrice||d.trigger_price||d.triggerPrice||d.price||'0';
+  const current = d.current||d.currentPrice||d.current_price||d.marketPrice||'0';
+  const amount = d.amount||d.receiveAmount||d.askAmount||d.qty||'0';
+  const pay = d.pay||d.payAmount||d.sendAmount||d.offerAmount||d.spend||'0';
+  const expiry = d.expiry||d.expires||'7 days';
   const pct = parseFloat(current)>0 ? ((parseFloat(current)-parseFloat(target))/parseFloat(current)*100).toFixed(1) : '0';
   const pair = buy ? `${payToken} → ${token}` : `${token} → ${payToken}`;
   return`<div class="acard">
