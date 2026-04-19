@@ -945,16 +945,21 @@ For farm listings:
   staking:`For staking requests respond with:
 <STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>`,
 
-  limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair — TON, USDT, NOT, STON, DOGS, any jetton.
-Fields: type=buy|sell, token=what to buy/sell, payToken=what to spend, tokenAddress=contract address of token (use known addresses or leave empty), payTokenAddress=contract address of payToken (use 'ton' for native TON), target=trigger price in USD, current=current price, amount=how much token, pay=how much payToken to spend, expiry=order duration.
-Examples:
-"Buy 100 NOT when TON hits $1.20" → buy NOT with TON when TON price drops to $1.20
-"Swap $10 USDT to TON when TON hits $1.30" → buy TON with USDT at target
-"Sell 500 NOT when NOT hits $0.001" → sell NOT for TON at target
+  limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair.
+REQUIRED fields — never leave any undefined:
+- type: "buy" or "sell"
+- token: the token being bought/sold (e.g. "TON", "NOT", "USDT")
+- payToken: the token being spent (e.g. "USDT", "TON")
+- tokenAddress: contract address of token. Use "ton" for native TON. Known: NOT=EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT, USDT=EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs, STON=EQA2kCVNwVsil2EM2mB0SkXytxCqQjS4mttjDpnXmwG9T6bO
+- payTokenAddress: contract address of payToken. Use "ton" for native TON.
+- target: trigger price in USD as string (e.g. "1.20")
+- current: current market price in USD as string (e.g. "1.29")
+- amount: quantity of token to buy/sell as string (e.g. "0.166")
+- pay: quantity of payToken to spend as string (e.g. "0.20")
+- expiry: "7 days"
 
-<LIMIT_CARD>{"type":"buy","token":"NOT","payToken":"TON","tokenAddress":"EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT","payTokenAddress":"ton","target":"1.20","current":"1.33","amount":"100","pay":"0.09","expiry":"7 days"}</LIMIT_CARD>
-<LIMIT_CARD>{"type":"buy","token":"TON","payToken":"USDT","tokenAddress":"ton","payTokenAddress":"EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs","target":"1.30","current":"1.33","amount":"7.5","pay":"10","expiry":"7 days"}</LIMIT_CARD>
-Always use real current prices from market data. Calculate pay amount correctly.`,
+Example — "buy $0.20 worth of TON with USDT when TON hits $1.20":
+<LIMIT_CARD>{"type":"buy","token":"TON","payToken":"USDT","tokenAddress":"ton","payTokenAddress":"EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs","target":"1.20","current":"1.29","amount":"0.166","pay":"0.20","expiry":"7 days"}</LIMIT_CARD>`,
 
   strategy:`For strategy requests, analyze wallet/market then create a multi-step plan:
 <STRATEGY_CARD>{"goal":"Maximize yield with 50 TON","totalValue":"$291","expectedApr":"24.5","steps":[{"n":1,"type":"swap","title":"Swap 20 TON → USDT","detail":"20 TON @ current rate USDT","amount":"20 TON"},{"n":2,"type":"liq","title":"Add TON/USDT Liquidity","detail":"Deposit 15 TON + 87.3 USDT to pool","amount":"$174.60"},{"n":3,"type":"farm","title":"Farm LP Tokens","detail":"Stake LP in farm for 22.4% total APR","amount":"LP tokens"},{"n":4,"type":"stake","title":"Stake Remaining STON","detail":"Stake 15 TON worth of STON for 12mo","amount":"~180 STON"}]}</STRATEGY_CARD>`,
