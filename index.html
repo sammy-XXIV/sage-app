@@ -942,8 +942,25 @@ For pool browsing:
 For farm listings:
 <FARMS_CARD>{"farms":[{"name":"TON/USDT","base":"8.4","bonus":"14.0","total":"22.4","tvl":"$2.1M"},{"name":"STON/TON","base":"6.2","bonus":"18.3","total":"24.5","tvl":"$890K"},{"name":"NOT/TON","base":"9.1","bonus":"9.1","total":"18.2","tvl":"$1.2M"}]}</FARMS_CARD>`,
 
-  staking:`For staking requests respond with:
-<STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>`,
+  staking:`SAGE has TWO staking options — always pick the right one:
+
+OPTION 1 — TON Liquid Staking (TON Stakers):
+- Triggered by: "stake TON", "liquid stake", "earn on TON", "stake my TON"
+- User stakes TON → receives tsTON → ~5% APY, no lock up, stays liquid
+- Use: <STAKE_CARD>{"token":"TON","amount":"1","stakeTon":true}</STAKE_CARD>
+
+OPTION 2 — STON.fi STON Token Staking:
+- Triggered by: "stake STON", "lock STON", "STON governance"
+- User locks STON → receives GEMSTON + ARKENSTON NFT → 3-24 month lock
+- Calculate gemston = amount * (duration/12) * 2.5. Calculate unlocks from today.
+- Use: <STAKE_CARD>{"amount":"500","duration":"12","gemston":"1250","unlocks":"Apr 2027"}</STAKE_CARD>
+
+OPTION 3 — STON.fi LP Farm Staking:
+- Triggered by: "farm", "stake LP", "stake in pool", "earn farm rewards"
+- User stakes LP tokens in a farm → earns STON rewards
+- Redirect to STON.fi farms page
+
+Always clarify which one if user is ambiguous. Never mix them up.`,
 
   limitorder:`For limit order requests respond with a LIMIT_CARD. Works for ANY token pair.
 REQUIRED fields — never leave any undefined:
@@ -1021,7 +1038,7 @@ function parseCard(t,tag){
   try{return JSON.parse(m[1].trim())}catch{return null}
 }
 function strip(t){
-  return t.replace(/<(SWAP|LIQ|POOLS|FARM|FARMS|STAKE|LIMIT|STRATEGY|PF|ALERT|POS)_CARD>[\s\S]*?<\/\1_CARD>/g,'').trim();
+  return t.replace(/<(SWAP|LIQ|POOLS|FARM|FARMS|STAKE|STAKE_OPTIONS|LIMIT|STRATEGY|PF|ALERT|POS)_CARD>[\s\S]*?<\/\1_CARD>/g,'').trim();
 }
 
 // ── Card renderers ────────────────────────────────────────
@@ -1102,6 +1119,53 @@ function rFarms(d){
       </div>`).join('')}
     </div>
   </div>`;
+}
+
+function rStakeOptions(d){
+  const opts = d.options || [];
+  return `<div class="acard">
+    <div class="alabel"><span class="alabel-icon">🔒</span>STAKING OPTIONS</div>
+    <div class="drows">
+      <div class="dr"><span class="dl">Amount</span><span class="dv">${d.amount} TON</span></div>
+    </div>
+    <div class="sopt-grid">
+      ${opts.map((o,i)=>`
+      <div class="sopt" id="sopt_${i}" onclick="selectStakeOpt(${i},${esc2(d)},this)">
+        <div class="sopt-name">${o.name}</div>
+        <div class="sopt-apy">${o.apy}%</div>
+        <div class="sopt-sub">APY</div>
+        <div class="sopt-tags">
+          <span class="sopt-tag ${o.lock==='None'?'green':'yellow'}">${o.lock==='None'?'🔓 Liquid':'🔒 '+o.lock}</span>
+          <span class="sopt-tag ${o.risk==='Low'?'green':o.risk==='Medium'?'yellow':'red'}">${o.risk} risk</span>
+          ${o.receive?`<span class="sopt-tag">→ ${o.receive}</span>`:''}
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="rbar med" id="sopt_desc">${opts[0]?.desc||''}</div>
+    <button class="cbtn g" id="sopt_btn" onclick="execStakeOpt(${esc2(d)},this)" ${!walletOK?'disabled':''}>
+      ${walletOK?`Stake ${d.amount} TON with ${opts[0]?.name}`:'Connect Wallet First'}
+    </button>
+  </div>`;
+}
+
+let _selectedStakeOpt = 0;
+function selectStakeOpt(i, d, el){
+  _selectedStakeOpt = i;
+  el.closest('.sopt-grid').querySelectorAll('.sopt').forEach((s,j)=>s.classList.toggle('sel',j===i));
+  const opts = d.options||[];
+  document.getElementById('sopt_desc').textContent = opts[i]?.desc||'';
+  document.getElementById('sopt_btn').textContent = `Stake ${d.amount} TON with ${opts[i]?.name}`;
+}
+
+async function execStakeOpt(d, btn){
+  const opts = d.options||[];
+  const opt = opts[_selectedStakeOpt];
+  if(!opt) return;
+  if(opt.type === 'tonstakers'){
+    exec('staking', {stakeTon:true, amount:d.amount, token:'TON'}, btn);
+  } else {
+    exec('staking', {amount:d.amount, duration:'12', gemston: Math.round(parseFloat(d.amount||0)*(12/12)*2.5).toString(), unlocks:'Apr 2026'}, btn);
+  }
 }
 
 function rStake(d){
@@ -1269,7 +1333,7 @@ function renderAI(text){
 
   const cards=[
     ['SWAP_CARD',rSwap],['LIQ_CARD',rLiq],['POOLS_CARD',rPools],
-    ['FARM_CARD',rFarm],['FARMS_CARD',rFarms],['STAKE_CARD',rStake],
+    ['FARM_CARD',rFarm],['FARMS_CARD',rFarms],['STAKE_OPTIONS_CARD',rStakeOptions],['STAKE_CARD',rStake],
     ['LIMIT_CARD',rLimit],['STRATEGY_CARD',rStrategy],
     ['PF_CARD',rPortfolio],['ALERT_CARD',rAlerts],['POS_CARD',rPos]
   ];
@@ -1338,15 +1402,52 @@ async function exec(type, data, btn){
 
     // ── Farming ───────────────────────────────────────────
     else if(type === 'farming'){
-      // Farm staking requires LP token address from the pool
-      // For now guide user to STON.fi directly with context
-      toast('🌾 Opening STON.fi farm…');
-      const farmUrl = `https://app.ston.fi/farms`;
-      if(tg?.openLink) tg.openLink(farmUrl);
-      else window.open(farmUrl, '_blank');
-      btn.disabled = false;
-      btn.textContent = 'View on STON.fi ↗';
-      return;
+      btn.textContent = 'Finding farm…';
+
+      // Get farms list from Render
+      const farmsRes = await fetch(`${SWAP}/farms`);
+      const farmsData = await farmsRes.json();
+      if(!farmsData.ok) throw new Error('Could not fetch farms');
+
+      // Match farm by pool name
+      const poolName = (data.pool||'').toUpperCase();
+      const farm = farmsData.farms.find(f =>
+        f.name?.toUpperCase().includes(poolName) ||
+        poolName.includes(f.name?.toUpperCase().replace('/',' '))
+      ) || farmsData.farms[0];
+
+      if(!farm?.address) throw new Error('Farm not found for ' + data.pool);
+
+      // Get user's LP token wallet
+      const lpJettonRes = await fetch(`https://api.ston.fi/v1/jetton/${farm.lpToken}/address?owner_address=${walletAddr}`);
+      const lpJettonData = await lpJettonRes.json().catch(()=>({}));
+
+      if(!lpJettonData?.address) throw new Error('No LP tokens found. Add liquidity first.');
+
+      // Check LP balance
+      const lpBalRes = await fetch(`https://tonapi.io/v2/accounts/${walletAddr}/jettons`);
+      const lpBalData = await lpBalRes.json().catch(()=>({}));
+      const lpToken = (lpBalData?.balances||[]).find(j => j.jetton?.address === farm.lpToken);
+      const lpBalance = lpToken ? parseFloat(lpToken.balance)/1e9 : 0;
+
+      if(lpBalance <= 0) throw new Error('No LP tokens to stake. Add liquidity first.');
+
+      btn.textContent = `Staking ${lpBalance.toFixed(4)} LP…`;
+
+      const res = await fetch(`${SWAP}/build/stake`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          walletAddress: walletAddr,
+          farmAddress: farm.address,
+          lpTokenAddress: farm.lpToken,
+          lpAmount: lpBalance.toString(),
+        })
+      });
+      const result = await res.json();
+      if(!result.ok) throw new Error(result.error||'Farm stake failed');
+      transaction = result.transaction;
+      toast(`🌾 Staking ${lpBalance.toFixed(4)} LP in ${farm.name} farm`);
     }
 
     // ── Staking ───────────────────────────────────────────
