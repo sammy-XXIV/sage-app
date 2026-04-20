@@ -1756,9 +1756,21 @@ async function exec(type, data, btn){
       btn.textContent = 'Confirm in wallet…';
       toast('⚡ Opening wallet to confirm…');
       await tcUI.sendTransaction(transaction);
-      btn.textContent = '✓ Transaction sent';
+      btn.textContent = '✓ Done';
       btn.style.background = 'linear-gradient(135deg,#2ecc8f,#1a9962)';
       toast('✅ Transaction submitted!', 4000);
+
+      // Show success card below button
+      const successEl = document.createElement('div');
+      const txLabels = {swap:'Swap',liquidity:'Liquidity',staking:'Stake',farming:'Farm stake',limitorder:'Order funded',transfer:'Transfer'};
+      const txLabel = txLabels[type]||'Transaction';
+      successEl.innerHTML = `<div style="margin-top:10px;padding:12px;background:rgba(46,204,143,0.08);border:1px solid rgba(46,204,143,0.2);border-radius:10px;">
+        <div style="font-size:12px;color:#2ecc8f;font-weight:700;margin-bottom:6px;">✅ ${txLabel} Submitted</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:8px;">Transaction broadcast to TON network. Confirming on-chain…</div>
+        <a href="https://tonviewer.com/${walletAddr}" target="_blank" style="font-size:11px;color:#3b82f6;text-decoration:none;">View on Tonviewer ↗</a>
+      </div>`;
+      btn.parentNode.appendChild(successEl);
+
       // Refresh wallet data after tx
       setTimeout(()=>refreshWalletData(), 3000);
       setTimeout(()=>refreshWalletData(), 8000);
