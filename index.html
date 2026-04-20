@@ -1510,6 +1510,48 @@ function renderAI(text){
   cards.forEach(([tag,fn])=>{
     let d=parseCard(text,tag);
     if(!d)return;
+    // Auto-simulate swap card to get real values
+    if(tag==='SWAP_CARD' && (d.toAmount==='~'||!d.toAmount)){
+      const cardId = 'sc_'+Date.now();
+      d._id = cardId;
+      html+=fn(d);
+      // Simulate in background and update card
+      (async()=>{
+        try{
+          const fromAddr = getAddr(d.fromToken)||d.fromTokenAddr;
+          const toAddr = getAddr(d.toToken)||d.toTokenAddr;
+          if(!fromAddr||!toAddr) return;
+          const _fromSym=(d.fromToken||'').toUpperCase();
+          const _toSym=(d.toToken||'').toUpperCase();
+          const _isStable=['USDT','USDC','USDE','DAI'].some(s=>_fromSym.includes(s)||_toSym.includes(s));
+          const _isMajor=(_fromSym==='TON'||_toSym==='TON')&&!['NOT','DOGS'].includes(_fromSym)&&!['NOT','DOGS'].includes(_toSym);
+          const slip=_isStable?0.005:_isMajor?0.01:0.03;
+          const res = await fetch(`${SWAP}/build/swap`,{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({fromToken:fromAddr,toToken:toAddr,fromAmount:d.fromAmount,walletAddress:walletAddr||'EQDnWz8mfNx3NEdBWYqLLXUQ7oPp6fAg5jvs-Yt7LHUrJURh',slippage:slip})
+          });
+          const result = await res.json();
+          if(!result.ok) return;
+          const sim = result.simulation;
+          const toAmt = parseFloat(sim.askUnits)/1e9;
+          const rate = parseFloat(sim.swapRate)||0;
+          const impact = sim.priceImpact||'<0.1';
+          // Update card elements
+          const card = document.getElementById(cardId);
+          if(!card) return;
+          const toAmtEl = card.querySelector('.stok-a-to');
+          const rateEl = card.querySelector('.sc-rate');
+          const impactEl = card.querySelector('.sc-impact');
+          if(toAmtEl) toAmtEl.textContent = '≈'+fmtN(toAmt);
+          if(rateEl) rateEl.textContent = '1 '+d.fromToken+' = '+fmtN(rate)+' '+d.toToken;
+          if(impactEl) impactEl.textContent = impact+'%';
+          // Store tx for when user taps
+          card._tx = result.transaction;
+          card._sim = sim;
+        }catch(e){}
+      })();
+      return;
+    }
     // Auto-fix limit card amounts if AI sends zeros
     if(tag==='LIMIT_CARD'){
       const tgt=parseFloat(d.target||d.targetPrice||0);
