@@ -1386,25 +1386,31 @@ function loUpdate(inp,field,target){
 }
 
 function rStrategy(d){
-  const typeClass={swap:'swap',liq:'liq',farm:'farm',stake:'stake'};
+  const typeClass={swap:'swap',liq:'liq',farm:'farm',stake:'stake',hold:'med'};
+  const apr = (d.expectedApr||'').toString().replace('%','');
+  const steps = d.steps||[];
+  const risks = d.risks||[];
   return`<div class="acard">
     <div class="alabel"><span class="alabel-icon">🧠</span>STRATEGY PLAN</div>
     <div class="drows">
-      <div class="dr"><span class="dl">Goal</span><span class="dv ac">${d.goal}</span></div>
-      <div class="dr"><span class="dl">Total Value</span><span class="dv">${d.totalValue}</span></div>
-      <div class="dr"><span class="dl">Expected APR</span><span class="dv g">${d.expectedApr}%</span></div>
+      <div class="dr"><span class="dl">Goal</span><span class="dv ac">${d.goal||'Maximize yield'}</span></div>
+      <div class="dr"><span class="dl">Total Value</span><span class="dv">${d.totalValue||'—'}</span></div>
+      <div class="dr"><span class="dl">Expected APR</span><span class="dv g">${apr}%</span></div>
+      ${d.timeline?`<div class="dr"><span class="dl">Timeline</span><span class="dv">${d.timeline}</span></div>`:''}
     </div>
-    <div class="steps">${d.steps.map(s=>`
+    <div class="steps">${steps.map(s=>`
       <div class="step">
-        <div class="step-num">${s.n}</div>
+        <div class="step-num">${s.n||''}</div>
         <div class="step-body">
-          <div class="step-title">${s.title} <span class="step-badge ${typeClass[s.type]||'swap'}">${s.type.toUpperCase()}</span></div>
-          <div class="step-detail">${s.detail}</div>
+          <div class="step-title">${s.title||''} <span class="step-badge ${typeClass[s.type]||'swap'}">${(s.type||'').toUpperCase()}</span></div>
+          <div class="step-detail">${s.detail||''}</div>
+          ${s.amount?`<div style="font-size:11px;color:var(--green);margin-top:2px">${s.amount}</div>`:''}
         </div>
       </div>`).join('')}
     </div>
+    ${risks.length?`<div class="rbar med">⚠️ ${risks.join(' · ')}</div>`:''}
     <button class="cbtn" onclick="execStrategy(${esc2(d)},this)" ${!walletOK?'disabled':''}>
-      ${walletOK?`Execute ${d.steps.length}-Step Strategy`:'Connect Wallet First'}</button>
+      ${walletOK?`Execute ${steps.length}-Step Strategy`:'Connect Wallet First'}</button>
   </div>`;
 }
 
