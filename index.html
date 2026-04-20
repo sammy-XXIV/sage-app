@@ -515,10 +515,13 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
         <p><span class="sdot"></span>STON.fi · Live</p>
       </div>
     </div>
-    <button id="wBtn" onclick="connectWallet()">
-      <span class="wdot"></span>
-      <span id="wLbl">Connect</span>
-    </button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="clr-btn" onclick="clearChat()" title="Clear chat">🗑</button>
+      <button id="wBtn" onclick="connectWallet()">
+        <span class="wdot"></span>
+        <span id="wLbl">Connect</span>
+      </button>
+    </div>
   </div>
 
   <!-- Marquee ticker -->
@@ -1030,6 +1033,20 @@ function mktCtx(){
 async function askAI(msg){
   // Intercept order queries — fetch real data instead of asking AI
   const ml = msg.toLowerCase();
+
+  // Intercept stake confirmations — re-trigger stake card
+  if((ml==='yes'||ml==='proceed'||ml==='confirm'||ml==='yes please'||ml.includes('go ahead')||ml.includes('stake it')||ml.includes('yes stake'))&&walletAddr){
+    const lastAI = history.filter(m=>m.role==='assistant').slice(-1)[0]?.content||'';
+    const lastUser = history.filter(m=>m.role==='user').slice(-2,-1)[0]?.content?.toLowerCase()||'';
+    if(lastUser.includes('stake')||lastUser.includes('ton staker')||lastAI.includes('tsTON')||lastAI.includes('staking')){
+      // Extract amount from recent history
+      const amtMatch = (lastUser+lastAI).match(/(\d+\.?\d*)\s*ton/i);
+      const amt = Math.max(parseFloat(amtMatch?.[1]||'1'),1).toString();
+      addMsg('ai',`<div class="ai-content"><div class="bubble">Initiating stake for ${amt} TON via TON Stakers.</div>${rStake({stakeTon:true,amount:amt,token:'TON',apy:'5.2'})}</div>`);
+      return '';
+    }
+  }
+
   if(ml.includes('my order')||ml.includes('open order')||ml.includes('my trigger')||ml.includes('my limit')||ml.includes('existing trigger')||ml.includes('show order')||ml.includes('cancel order')){
     if(!walletAddr){ addMsg('ai','<div class="ai-content"><div class="bubble">Connect your wallet first.</div></div>'); return ''; }
     addMsg('ai','<div class="ai-content" id="ordersMsg"><div class="bubble">Fetching your orders…</div></div>');
@@ -1063,7 +1080,8 @@ Rules:
 - Max 55 words in text. Cards carry the detail.
 - Always output the right card for the action requested.
 - Warn about impermanent loss for LP, lock periods for staking.
-- TON Stakers minimum stake is 1 TON. NEVER show a stake amount below 1 TON for TON Stakers. If user says less than 1 TON, set amount to 1 and warn them.
+- TON Stakers minimum stake is 1 TON.
+- CRITICAL: NEVER confirm or execute staking in text. ALWAYS show a STAKE_OPTIONS_CARD or STAKE_CARD first. If user says "yes", "proceed", "stake", "confirm" — still show the card, never just describe the transaction in text. NEVER show a stake amount below 1 TON for TON Stakers. If user says less than 1 TON, set amount to 1 and warn them.
 - SAGE SUPPORTS REAL LIMIT ORDERS — when user asks to create a new buy/sell at a target price, ALWAYS respond with a LIMIT_CARD.
 - When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data.
 - You are SAGE. Never break character.`;
@@ -1838,6 +1856,14 @@ async function send(){
     addMsg('ai',`<div class="ai-content"><div class="bubble">Connection issue — try again.</div></div>`);
   }
   document.getElementById('sbtn').disabled=false;busy=false;
+}
+
+function clearChat(){
+  document.getElementById('chat').innerHTML='<div id="welcome"><div class="wi" id="wi">⚡</div><div class="wt">Hey, I\'m SAGE</div><div class="ws">Your full AI agent for STON.fi — swap, liquidity, farming, staking, limit orders, smart strategies & portfolio intelligence.</div><div class="chips" id="chips"></div></div>';
+  history=[];
+  localStorage.removeItem(getHK());
+  renderChips();
+  toast('💬 Chat cleared');
 }
 
 function chipSend(el){document.getElementById('inp').value=el.textContent;send()}
