@@ -846,6 +846,11 @@ async function refreshWalletData(){
 }
 
 
+// ── Keepalive — ping Render every 10min to prevent cold start ──
+setInterval(()=>fetch(`${SWAP}/ping`).catch(()=>{}), 10*60*1000);
+// Also ping immediately on load
+setTimeout(()=>fetch(`${SWAP}/ping`).catch(()=>{}), 2000);
+
 // ── Market ────────────────────────────────────────────────
 // Token addresses on STON.fi
 const ADDR={
@@ -1086,16 +1091,28 @@ Rules:
 - When user asks to SEE their existing orders ("show my orders", "my triggers", "open orders"), say "Fetching your orders..." — the UI handles this automatically, do NOT generate a LIMIT_CARD with made-up data.
 - You are SAGE. Never break character.`;
 
-  const msgs=history.slice(-10).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
+  const msgs=history.slice(-6).filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
   msgs.push({role:'user',content:msg});
 
-  const r=await fetch(API,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:msgs})
-  });
-  if(!r.ok)throw new Error('AI error');
-  return(await r.json()).content[0].text;
+  // Retry up to 2 times with 25s timeout
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      const ctrl = new AbortController();
+      const timeout = setTimeout(()=>ctrl.abort(), 25000);
+      const r=await fetch(API,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:msgs}),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timeout);
+      if(!r.ok) throw new Error('AI error '+r.status);
+      return(await r.json()).content[0].text;
+    }catch(e){
+      if(attempt===1) throw e; // fail on second attempt
+      await new Promise(r=>setTimeout(r,1000)); // wait 1s before retry
+    }
+  }
 }
 
 // ── Card parsers ──────────────────────────────────────────
@@ -1851,9 +1868,13 @@ async function send(){
     const aiHtml=renderAI(resp);
     addMsg('ai',`<div class="ai-content">${aiHtml}</div>`);
     addH('assistant',resp);
-  }catch{
+  }catch(e){
     rmTyping();
-    addMsg('ai',`<div class="ai-content"><div class="bubble">Connection issue — try again.</div></div>`);
+    const msg = e.message?.includes('abort') ? 'Request timed out — try again.' 
+      : e.message?.includes('AI error') ? 'AI service error — try again.'
+      : e.message?.includes('Failed to fetch') ? 'Network error — check connection.'
+      : 'Something went wrong — try again.';
+    addMsg('ai',`<div class="ai-content"><div class="bubble">${msg}</div></div>`);
   }
   document.getElementById('sbtn').disabled=false;busy=false;
 }
